@@ -51,6 +51,13 @@ new speedotimer[MAX_PLAYERS];
 new healthtimer[MAX_PLAYERS];
 new hoursplayedtimer[MAX_PLAYERS];
 new paydaytimer[MAX_PLAYERS];
+new locktimer[MAX_PLAYERS];
+new testdrivetimer[MAX_PLAYERS];
+new vehiclehealth;
+
+new vipgatestatus;
+new admingate;
+new admingatestatus;
 
 new gobackstatus[MAX_PLAYERS];
 new Float:savedposx[MAX_PLAYERS];
@@ -59,11 +66,15 @@ new Float:savedposz[MAX_PLAYERS];
 
 new DealershipStatus[MAX_DEALERSHIPS];
 new Float:DealershipPosition[MAX_DEALERSHIPS][3];
+new DealershipIcon[MAX_DEALERSHIPS];
 new DealershipPickup[MAX_DEALERSHIPS];
 new Text3D:VehicleLabel[MAX_VEHICLES];
 
 new PlayerText:VehicleMeter[MAX_PLAYERS];
 new PlayerText:Speedometer[MAX_PLAYERS];
+new PlayerText:LockText[MAX_PLAYERS];
+
+new isTakingTest[MAX_PLAYERS];
 
 new Text:Time, Text:Date;
 
@@ -90,6 +101,10 @@ new VehicleNames[][] = {
 	"Police Car (LVPD)","Police Ranger","Picador","S.W.A.T. Van","Alpha","Phoenix","Glendale","Sadler","Luggage Trailer A","Luggage Trailer B",
 	"Stair Trailer","Boxville","Farm Plow","Utility Trailer"
 };
+
+new TestDriveStatus[MAX_PLAYERS];
+
+new vipgate;
 
 // -------------------------------------------Enums-------------------------------------------
 enum PlayerData
@@ -119,13 +134,20 @@ enum PlayerData
 	pVehicle5,
 	pVehicle6,
 	pVehicle7,
-	pVehicle8
+	pVehicle8,
+	pKey1,
+	pKey2,
+	pKey3,
+	pKey4,
+	pKey5,
+	pDriversLicense
 }
 new Player[MAX_PLAYERS][PlayerData];
 
 enum VehicleData
 {
 	vStatus,
+	vID,
 	vModel,
 	Float:vPosition[3],
 	Float:vAngle,
@@ -138,7 +160,8 @@ enum VehicleData
 	vCarPlate,
 	vMods[14],
 	vPaintjob,
-	Float:vFuel
+	Float:vFuel,
+	vLock
 }
 new Vehicle[MAX_VEHICLES][VehicleData];
 
@@ -153,22 +176,53 @@ enum dialogs
 
 	DIALOG_BUY_LEVEL,
 
-	DIALOG_BUY_VEHICLE
+	DIALOG_BUY_VEHICLE,
+
+	DIALOG_DMV
 }
 
-new Float:lowdealershipspawnsX[] = {2161.0, 2161.0, 2161.0, 2161.0, 2161.0, 2161.0, 2147.0, 2147.0, 2147.0, 2147.0, 2147.0, 2147.0};
-new Float:lowdealershipspawnsY[] = {-1197.0, -1187.0, -1177.0, -1167.0, -1157.0, -1147.0, -1203.0, -1193.0, -1183.0, -1173.0, -1163.0, -1153.0};
-new Float:lowdealershipspawnsZ[] = {23.8801, 23.8203, 23.8203, 23.8203, 23.8203, 24.4088, 23.8463, 23.8341, 23.8341, 23.8341, 23.8341, 23.8341};
-new Float:lowdealershipsrots[] = {90.0, 90.0, 90.0, 90.0, 90.0, 90.0, 270.0, 270.0, 270.0, 270.0, 270.0, 270.0};
+new Float:lowdealershipspawns[][4] = {
+	{2161.300537, -1143.725219, 24.686105, 90.0},
+	{2161.036865, -1152.745239, 23.786071, 90.0},
+	{2161.072509, -1163.091308, 23.655488, 90.0},
+	{2161.796630, -1172.845092, 23.657230, 90.0},
+	{2161.796142, -1182.686279, 23.655429, 90.0},
+	{2161.792480, -1192.385620, 23.658296, 90.0},
+	{2147.681396, -1198.852783, 23.723491, 270.0},
+	{2147.102050, -1189.630859, 23.658788, 270.0},
+	{2147.869873, -1180.263305, 23.658323, 270.0},
+	{2147.803710, -1170.941162, 23.658363, 270.0},
+	{2147.831787, -1161.693237, 23.661066, 270.0},
+	{2147.841796, -1153.030517, 23.773117, 270.0},
+	{2148.112304, -1143.275268, 24.807022, 270.0},
+	{2148.721923, -1133.916992, 25.405361, 270.0}
+};
+
+new Float:vipdealershipspawns[][4] = {
+	{-1992.2991, 241.0, 34.8990, 90.0},
+	{-1991.7102, 246.0, 34.8990, 90.0},
+	{-1990.8871, 251.0, 34.8990, 90.0},
+	{-1990.3843, 256.0, 34.8990, 90.0},
+	{-1989.4788, 261.0, 34.9064, 90.0},
+	{-1989.0850, 266.0, 34.9027, 90.0},
+	{-1988.7513, 271.0, 34.9027, 90.0},
+	{-1987.7513, 276.0, 34.9027, 90.0}
+};
+
+new Float:offdealershipspawns[][4] = {
+	{-2874.078613, 422.603179, 4.789996, 0.0},
+	{-2884.099853, 422.273284, 4.756505, 0.0},
+	{-2894.133789, 422.565704, 4.752042, 0.0},
+	{-2904.123535, 422.098205, 4.752683, 0.0},
+	{-2914.153076, 422.259368, 4.752815, 0.0},
+	{-2924.165771, 432.693023, 4.752304, 270.0},
+	{-2924.584716, 442.682464, 4.748646, 270.0},
+	{-2924.475097, 452.588226, 4.752677, 270.0}
+};
 
 new lspos = 0;
-
-new Float:vipdealershipspawnsX[] = {-1921.7722, -1921.7722, -1921.7722, -1921.7722, -1921.7722, -1921.7722, -1921.7722};
-new Float:vipdealershipspawnsY[] = {279.0, 284.0, 289.0, 294.0, 299.0, 304.0};
-new Float:vipdealershipspawnsZ[] = {41.0469, 41.0469, 41.0469, 41.0469, 41.0469, 41.0469};
-new Float:vipdealershiprots[] = {240.0, 240.0, 240.0, 240.0, 240.0, 240.0};
-
 new vspos = 0;
+new ospos = 0;
 
 native WP_Hash(buffer[], len, const str[]);
 
@@ -239,8 +293,20 @@ forward RemoveObjects(playerid);
 forward UpdatePlayerVehicle(vehicleid, removeold);
 
 forward Speedo(playerid, vehicleid);
+forward LockStatus(playerid, vehicleid);
 
 forward settime(playerid);
+
+forward TestDrive(playerid, vehicleid);
+
+forward CheckFreePlayerKey(playerid);
+
+forward CheckVehicleHealth();
+
+forward CreateDMV();
+forward StartTest(playerid);
+
+forward CloseGate(gateid);
 
 main() {}
 
@@ -274,12 +340,26 @@ public OnGameModeInit()
 	TextDrawFont(Date, 3);
 	TextDrawLetterSize(Date, 0.399999, 1.600000);
 	TextDrawColor(Date, 0xffffffff);
+	TextDrawSetShadow(Date, 1);
 
 	Time = TextDrawCreate(547.000000, 28.000000, "--");
 	TextDrawFont(Time, 3);
 	TextDrawLetterSize(Time, 0.399999, 1.600000);
 	TextDrawColor(Time, 0xffffffff);
+	TextDrawSetShadow(Time, 1);
 
+	SetWeather(1);
+
+	SetTimer("CheckVehicleHealth", 1000, 1);
+
+	CreateDMV();
+
+	return 1;
+}
+
+public OnGameModeExit()
+{
+	KillTimer(vehiclehealth);
 	return 1;
 }
 
@@ -290,36 +370,43 @@ public OnPlayerConnect(playerid)
 	TogglePlayerSpectating(playerid, 1);
 	CheckAccountExist(playerid);
 
-	hoursplayedtimer[playerid] = SetTimerEx("IncreaseHoursPlayed", 6000, 1, "i", playerid);
+	hoursplayedtimer[playerid] = SetTimerEx("IncreaseHoursPlayed", 60000, 1, "i", playerid);
 	healthtimer[playerid] = SetTimerEx("DecreaseHealth", 30000, 1, "i", playerid);
 	paydaytimer[playerid] = SetTimerEx("Payday", 1000, 1, "i", playerid);
 	accountstimer[playerid] = SetTimerEx("SaveAccount", 60000, 1, "i", playerid);
 
-	VehicleMeter[playerid] = CreatePlayerTextDraw(playerid, 498.000000, 140.000000, " ");
+	VehicleMeter[playerid] = CreatePlayerTextDraw(playerid, 520.000000, 140.000000, " ");
 	PlayerTextDrawBackgroundColor(playerid, VehicleMeter[playerid], 255);
 	PlayerTextDrawFont(playerid, VehicleMeter[playerid], 1);
-	PlayerTextDrawLetterSize(playerid, VehicleMeter[playerid], 0.389999, 1.299999);
+	PlayerTextDrawLetterSize(playerid, VehicleMeter[playerid], 0.289999, 1.299999);
 	PlayerTextDrawColor(playerid, VehicleMeter[playerid], 0xFFFFFFFF);
 	PlayerTextDrawSetOutline(playerid, VehicleMeter[playerid], 1);
 	PlayerTextDrawSetProportional(playerid, VehicleMeter[playerid], 1);
 
-
-	Speedometer[playerid] = CreatePlayerTextDraw(playerid, 498.000000, 123.000000, " ");
+	Speedometer[playerid] = CreatePlayerTextDraw(playerid, 520.000000, 123.000000, " ");
 	PlayerTextDrawBackgroundColor(playerid, Speedometer[playerid], 255);
 	PlayerTextDrawFont(playerid, Speedometer[playerid], 1);
-	PlayerTextDrawLetterSize(playerid, Speedometer[playerid], 0.389999, 1.299999);
+	PlayerTextDrawLetterSize(playerid, Speedometer[playerid], 0.289999, 1.299999);
 	PlayerTextDrawColor(playerid, Speedometer[playerid], 0xFFFFFFFF);
 	PlayerTextDrawSetOutline(playerid, Speedometer[playerid], 1);
 	PlayerTextDrawSetProportional(playerid, Speedometer[playerid], 1);
+
+	LockText[playerid] = CreatePlayerTextDraw(playerid, 520.000000, 157.000000, " ");
+	PlayerTextDrawBackgroundColor(playerid, LockText[playerid], 255);
+	PlayerTextDrawFont(playerid, LockText[playerid], 1);
+	PlayerTextDrawLetterSize(playerid, LockText[playerid], 0.289999, 1.299999);
+	PlayerTextDrawColor(playerid, LockText[playerid], 0xFFFFFFFF);
+	PlayerTextDrawSetOutline(playerid, LockText[playerid], 1);
+	PlayerTextDrawSetProportional(playerid, LockText[playerid], 1);
 
 	RemoveObjects(playerid);
 
 	for(new i = 1; i < MAX_VEHICLES; i++)
 	{
 		if(strcmp(Vehicle[i][vOwner], GetName(playerid)) == 0)
-			UpdatePlayerVehicle(i, 0);	
+			UpdatePlayerVehicle(i, 0);
 	}
-	
+
 	return 1;
 }
 
@@ -407,82 +494,211 @@ public OnDialogResponse(playerid, dialogid, response, listitem, inputtext[])
 
 			if(response)
 			{
-				new vehicleid = GetPlayerVehicleID(playerid);
-
-				new slot = CheckFreePlayerSlot(playerid);
-
-				if(slot == 1)
-					Player[playerid][pVehicle1] = GetVehicleModel(vehicleid);
-				else if(slot == 2)
-					Player[playerid][pVehicle2] = GetVehicleModel(vehicleid);
-				else if(slot == 3)
-					Player[playerid][pVehicle3] = GetVehicleModel(vehicleid);
-				else if(slot == 4)
-					Player[playerid][pVehicle4] = GetVehicleModel(vehicleid);
-				else if(slot == 5)
-					Player[playerid][pVehicle5] = GetVehicleModel(vehicleid);
-				else if(slot == 6)
-					Player[playerid][pVehicle6] = GetVehicleModel(vehicleid);
-				else if(slot == 7)
-					Player[playerid][pVehicle7] = GetVehicleModel(vehicleid);
-				else if(slot == 8)
-					Player[playerid][pVehicle8] = GetVehicleModel(vehicleid);
-
-				SaveAccount(playerid);
-
-				new freeid = GetFreeVehicleID();
-				if(!freeid)
+				if(listitem == 0)
 				{
-					ClearAnimations(playerid, 0);
-					RemovePlayerFromVehicle(playerid);
-					return SendClientMessage(playerid, COLOR_NEUTRAL, "Vehicle dealership is out of stock.");
-				}
+					new vehicleid = GetPlayerVehicleID(playerid);
 
-				Vehicle[freeid][vStatus] = 1;
-				Vehicle[freeid][vOwner] = GetName(playerid);
-				Vehicle[freeid][vModel] = GetVehicleModel(vehicleid);
-				// Vehicle[freeid][vPosition][0] = vipdealershipspawnsX[vspos];
-				// Vehicle[freeid][vPosition][1] = vipdealershipspawnsY[vspos];
-				// Vehicle[freeid][vPosition][2] = vipdealershipspawnsZ[vspos];
-				// Vehicle[freeid][vAngle] = vipdealershiprots[vspos];
+					new slot = CheckFreePlayerSlot(playerid);
 
-				switch(GetVehicleModel(vehicleid))
-				{
-					case 412, 534, 535, 536, 566, 567, 575, 576:
+					// new freeid = GetFreeVehicleID();
+					// if(!freeid)
+					// {
+					// 	ClearAnimations(playerid, 0);
+					// 	RemovePlayerFromVehicle(playerid);
+					// 	return SendClientMessage(playerid, COLOR_NEUTRAL, "Vehicle dealership is out of stock.");
+					// }
+
+					if(slot == 1)
 					{
-						Vehicle[freeid][vPosition][0] = lowdealershipspawnsX[lspos];
-						Vehicle[freeid][vPosition][1] = lowdealershipspawnsY[lspos];
-						Vehicle[freeid][vPosition][2] = lowdealershipspawnsZ[lspos];
-						Vehicle[freeid][vAngle] = lowdealershipsrots[lspos];
-
-						lspos++;
-						if(lspos > 11)
-							lspos = 0;
+						Player[playerid][pVehicle1] = vehicles;
 					}
+					else if(slot == 2)
+					{
+						Player[playerid][pVehicle2] = vehicles;
+					}
+					else if(slot == 3)
+					{
+						Player[playerid][pVehicle3] = vehicles;
+					}
+					else if(slot == 4)
+					{
+						Player[playerid][pVehicle4] = vehicles;
+					}
+					else if(slot == 5)
+					{
+						Player[playerid][pVehicle5] = vehicles;
+					}
+					else if(slot == 6)
+					{
+						Player[playerid][pVehicle6] = vehicles;
+					}
+					else if(slot == 7)
+					{
+						Player[playerid][pVehicle7] = vehicles;
+					}
+					else if(slot == 8)
+					{
+						Player[playerid][pVehicle8] = vehicles;
+					}
+
+					new key = CheckFreePlayerKey(playerid);
+
+					if(key == 1)
+						Player[playerid][pKey1] = vehicles;
+					else if(key == 2)
+						Player[playerid][pKey2] = vehicles;
+					else if(key == 3)
+						Player[playerid][pKey3] = vehicles;
+					else if(key == 4)
+						Player[playerid][pKey4] = vehicles;
+
+					SaveAccount(playerid);
+
+					// Vehicle[freeid][vStatus] = 1;
+					// Vehicle[freeid][vOwner] = GetName(playerid);
+					// Vehicle[freeid][vModel] = GetVehicleModel(vehicleid);
+
+					Vehicle[vehicles][vStatus] = 1;
+					Vehicle[vehicles][vID] = vehicles;
+					Vehicle[vehicles][vOwner] = GetName(playerid);
+					Vehicle[vehicles][vModel] = GetVehicleModel(vehicleid);
+					switch(GetVehicleModel(vehicleid))
+					{
+						case 412, 534, 535, 536, 566, 567, 575, 576:
+						{
+							// Vehicle[freeid][vPosition][0] = lowdealershipspawns[lspos][0];
+							// Vehicle[freeid][vPosition][1] = lowdealershipspawns[lspos][1];
+							// Vehicle[freeid][vPosition][2] = lowdealershipspawns[lspos][2];
+							// Vehicle[freeid][vAngle] = lowdealershipspawns[lspos][3];
+
+							Vehicle[vehicles][vPosition][0] = lowdealershipspawns[lspos][0];
+							Vehicle[vehicles][vPosition][1] = lowdealershipspawns[lspos][1];
+							Vehicle[vehicles][vPosition][2] = lowdealershipspawns[lspos][2];
+							Vehicle[vehicles][vAngle] = lowdealershipspawns[lspos][3];
+
+							lspos++;
+							if(lspos > 12)
+								lspos = 0;
+						}
+
+						case 400, 424, 444, 489, 495, 500, 556, 557, 573, 579:
+						{
+							Vehicle[vehicles][vPosition][0] = offdealershipspawns[ospos][0];
+							Vehicle[vehicles][vPosition][1] = offdealershipspawns[ospos][1];
+							Vehicle[vehicles][vPosition][2] = offdealershipspawns[ospos][2];
+							Vehicle[vehicles][vAngle] = offdealershipspawns[ospos][3];
+
+							ospos++;
+							if(ospos > 7)
+								ospos = 0;
+						}
+
+						case 411, 429, 451, 494, 502, 503, 541:
+						{
+							Vehicle[vehicles][vPosition][0] = vipdealershipspawns[vspos][0];
+							Vehicle[vehicles][vPosition][1] = vipdealershipspawns[vspos][1];
+							Vehicle[vehicles][vPosition][2] = vipdealershipspawns[vspos][2];
+							Vehicle[vehicles][vAngle] = vipdealershipspawns[vspos][3];
+
+							vspos++;
+							if(vspos > 7)
+								vspos = 0;
+						}
+					}
+
+					// Vehicle[freeid][vColor1] = 1;
+					// Vehicle[freeid][vColor2] = 1;
+					// Vehicle[freeid][vPrice] = 0;
+					// sscanf(Vehicle[freeid][vOwner], "s[128]", GetName(playerid));
+					// Vehicle[freeid][vInterior] = 0;
+					// Vehicle[freeid][vVirtualWorld] = 0;
+					// sscanf(Vehicle[freeid][vCarPlate], "s[128]", "NewCar");
+					// Vehicle[freeid][vPaintjob] = 3;
+					// Vehicle[freeid][vFuel] = 100.0;
+
+					Vehicle[vehicles][vColor1] = 1;
+					Vehicle[vehicles][vColor2] = 1;
+					Vehicle[vehicles][vPrice] = 0;
+					sscanf(Vehicle[vehicles][vOwner], "s[128]", GetName(playerid));
+					Vehicle[vehicles][vInterior] = 0;
+					Vehicle[vehicles][vVirtualWorld] = 0;
+					sscanf(Vehicle[vehicles][vCarPlate], "s[128]", "NewCar");
+					Vehicle[vehicles][vPaintjob] = 3;
+					Vehicle[vehicles][vFuel] = 100.0;
+					Vehicle[vehicles][vLock] = 1;
+
+					// UpdatePlayerVehicle(freeid, 0);
+					// SaveVehicle(freeid);
+
+					UpdatePlayerVehicle(vehicles, 0);
+					SaveVehicle(vehicles);
+
+					vehicles++;
+
+					format(string, sizeof(string), "Congratulations, you have bought %s for $%d. For more info, use /vhelp.", GetVehicleName(vehicleid), Vehicle[vehicleid][vPrice]);
+					SendClientMessage(playerid, COLOR_LIGHTBLUE, string);
 				}
 
-				Vehicle[freeid][vColor1] = 1;
-				Vehicle[freeid][vColor2] = 1;
-				Vehicle[freeid][vPrice] = 0;
-				sscanf(Vehicle[freeid][vOwner], "s[128]", GetName(playerid));
-				Vehicle[freeid][vInterior] = 0;
-				Vehicle[freeid][vVirtualWorld] = 0;
-				sscanf(Vehicle[freeid][vCarPlate], "s[128]", "NewCar");
-				Vehicle[freeid][vPaintjob] = 3;
-				Vehicle[freeid][vFuel] = 100.0;
+				if(listitem == 1)
+				{
+					new vid = GetPlayerVehicleID(playerid);
+					new model = GetVehicleModel(vid);
+					new vid2;
 
-				UpdatePlayerVehicle(freeid, 0);
-				SaveVehicle(freeid);
+					TestDriveStatus[playerid] = 1;
 
-				format(string, sizeof(string), "Congratulations, you have bought %s for $%d. For more info, use /vhelp.", GetVehicleName(vehicleid), Vehicle[vehicleid][vPrice]);
-				SendClientMessage(playerid, COLOR_LIGHTBLUE, string);
+					SendClientMessage(playerid, COLOR_LIGHTBLUE, "You can test this vehicle for two minutes.");
+					SendClientMessage(playerid, COLOR_WHITE, "Do not exit the vehicle or the test drive will end.");
 
-				// vspos++;
-				// if(vspos > 5)
-				// 	vspos = 0;
+					SetPlayerVirtualWorld(playerid, playerid + 1);
+
+					if(model == 469 || model == 487 || model == 513 || model == 519)
+						vid2 = CreateVehicle(model, 388.0604, 2501.7803, 16.4844, 90.0, 128 + random(129), 128 + random(129), -1);
+					else
+						vid2 = CreateVehicle(model, 1805.8253, 818.2437, 10.7787, 0, 128 + random(129), 128 + random(129), -1);
+
+					SetVehicleVirtualWorld(vid2, playerid + 1);
+					PutPlayerInVehicle(playerid, vid2, 0);
+					Vehicle[vid2][vFuel] = 100.0;
+
+					ChangeVehiclePaintjob(vid2, random(3));
+
+					testdrivetimer[playerid] = SetTimerEx("TestDrive", 120000, 0, "ii", playerid, vid2);
+				}
 			}
 		}
 	}
+	return 1;
+}
+
+public TestDrive(playerid, vehicleid)
+{
+	new model = GetVehicleModel(vehicleid);
+
+	switch(model)
+	{
+		case 412, 534, 535, 536, 566, 567, 575, 576:
+			SetPlayerPos(playerid, DealershipPosition[0][0], DealershipPosition[0][1], DealershipPosition[0][2]);
+		case 411, 429, 451, 494, 502, 503, 541:
+			SetPlayerPos(playerid, DealershipPosition[1][0], DealershipPosition[1][1], DealershipPosition[1][2]);
+		case 469, 487, 513, 519:
+			SetPlayerPos(playerid, DealershipPosition[2][0], DealershipPosition[2][1], DealershipPosition[2][2]);
+		case 446, 452, 453, 454, 473, 484, 493:
+			SetPlayerPos(playerid, DealershipPosition[3][0], DealershipPosition[3][1], DealershipPosition[3][2]);
+		case 400, 424, 444, 489, 495, 500, 556, 557, 573, 579:
+			SetPlayerPos(playerid, DealershipPosition[4][0], DealershipPosition[4][1], DealershipPosition[4][2]);
+		case 461, 462, 463, 468, 471, 481, 509, 510, 521, 522, 581, 586:
+			SetPlayerPos(playerid, DealershipPosition[5][0], DealershipPosition[5][1], DealershipPosition[5][2]);
+		case 401, 402, 405, 409, 410, 419, 421, 426, 434, 436, 439, 445, 466, 467, 474, 475, 477, 480, 491, 492, 496, 506, 507, 517, 518, 526, 527, 529, 533, 540, 542, 545, 546, 547, 549, 550, 551, 555, 558, 559, 560, 562, 565, 580, 585, 587, 589, 602, 603:
+			SetPlayerPos(playerid, DealershipPosition[6][0], DealershipPosition[6][1], DealershipPosition[6][2]);
+		case 423, 441, 443, 457, 465, 483, 485, 501, 530, 539, 571, 572, 574, 583, 594, 564:
+			SetPlayerPos(playerid, DealershipPosition[7][0], DealershipPosition[7][1], DealershipPosition[7][2]);
+	}
+
+	DestroyVehicle(vehicleid);
+	SetPlayerVirtualWorld(playerid, 0);
+
+	TestDriveStatus[playerid] = 0;
 	return 1;
 }
 
@@ -503,6 +719,7 @@ public OnPlayerDisconnect(playerid, reason)
 
 	PlayerTextDrawDestroy(playerid, VehicleMeter[playerid]);
 	PlayerTextDrawDestroy(playerid, Speedometer[playerid]);
+	PlayerTextDrawDestroy(playerid, LockText[playerid]);
 
 	SaveAccount(playerid);
 
@@ -613,6 +830,45 @@ public OnPlayerKeyStateChange(playerid, newkeys, oldkeys)
 			SetVehicleParamsEx(vid, engine, lights, alarm, doors, bonnet, boot, objective);
 		}
 	}
+
+	if(newkeys & KEY_CROUCH)
+	{
+		if(IsPlayerInRangeOfPoint(playerid, 10.0, 1027.3508, 1162.8308, 10.6719))
+		{
+			if(GetPlayerState(playerid) == PLAYER_STATE_DRIVER || GetPlayerState(playerid) == PLAYER_STATE_ONFOOT)
+			{
+				if(vipgatestatus == 0)
+				{
+					// MoveObject(vipgate, 1021.8214, 1161.8514, 6.8850, 2.0, -1000.0, -1000.0, -1000.0);
+					MoveObject(vipgate, 1021.8214, 1161.8514, 18.4798, 2.0, -1000.0, -1000.0, -1000.0);
+					vipgatestatus = 1;
+					SetTimerEx("CloseGate", 7500, 0, "i", vipgate);
+				}
+				else
+				{
+					MoveObject(vipgate, 1021.82141, 1161.85144, 12.60217, 2.0, -1000.0, -1000.0, -1000.0);
+					vipgatestatus = 0;
+				}
+			}
+		}
+		else if(IsPlayerInRangeOfPoint(playerid, 10.0, -504.6579, 2592.8088, 53.4478))
+		{
+			if(GetPlayerState(playerid) == PLAYER_STATE_DRIVER || GetPlayerState(playerid) == PLAYER_STATE_ONFOOT)
+			{
+				if(admingatestatus == 0)
+				{
+					MoveObject(admingate, -505.0953, 2598.4536, 49.5766, 2.0, -1000.0, -1000.0, -1000.0);
+					admingatestatus = 1;
+					SetTimerEx("CloseGate", 7500, 0, "i", admingate);
+				}
+				else
+				{
+					MoveObject(admingate, -505.09534, 2598.45361, 55.32130, 2.0, -1000.0, -1000.0, -1000.0);
+					admingatestatus = 0;
+				}
+			}
+		}
+	}
 	return 1;
 }
 
@@ -628,12 +884,19 @@ public OnPlayerStateChange(playerid, newstate, oldstate)
 	{
 		KillTimer(fueltimer[playerid]);
 		KillTimer(speedotimer[playerid]);
+		KillTimer(locktimer[playerid]);
 
-		PlayerTextDrawShow(playerid, VehicleMeter[playerid]);
+		if(IsBicycle(vid) == 0 && IsAirplane(vid) == 0)
+		{
+			PlayerTextDrawShow(playerid, VehicleMeter[playerid]);
+			PlayerTextDrawShow(playerid, LockText[playerid]);
+		}
+
 		PlayerTextDrawShow(playerid, Speedometer[playerid]);
 
 		fueltimer[playerid] = SetTimerEx("DecreaseFuel", 1000, 1, "ii", playerid, vid);
 		speedotimer[playerid] = SetTimerEx("Speedo", 500, 1, "ii", playerid, vid);
+		locktimer[playerid] = SetTimerEx("LockStatus", 1200, 1, "ii", playerid, vid);
 
 		if(IsBicycle(vid))
 			ToggleEngine(vid, VEHICLE_PARAMS_ON);
@@ -664,7 +927,8 @@ public OnPlayerStateChange(playerid, newstate, oldstate)
 					}
 				}
 
-				ShowPlayerDialog(playerid, DIALOG_BUY_VEHICLE, DIALOG_STYLE_MSGBOX, "Buy Vehicle", "Do you want to buy this vehicle?\nPress escape to cancel.", "Buy Vehicle", "Test Drive");
+				// ShowPlayerDialog(playerid, DIALOG_BUY_VEHICLE, DIALOG_STYLE_MSGBOX, "Buy Vehicle", "Do you want to buy this vehicle?\nPress escape to cancel.", "Buy Vehicle", "Test Drive");
+				ShowPlayerDialog(playerid, DIALOG_BUY_VEHICLE, DIALOG_STYLE_LIST, "Buy Vehicle", "Buy Vehicle\nTest Drive", "Choose", "Cancel");
 			}
 			else
 			{
@@ -679,8 +943,10 @@ public OnPlayerStateChange(playerid, newstate, oldstate)
 	{
 		PlayerTextDrawHide(playerid, VehicleMeter[playerid]);
 		PlayerTextDrawHide(playerid, Speedometer[playerid]);
+		PlayerTextDrawHide(playerid, LockText[playerid]);
 		KillTimer(fueltimer[playerid]);
 		KillTimer(speedotimer[playerid]);
+		KillTimer(locktimer[playerid]);
 	}
 	return 1;
 }
@@ -695,6 +961,10 @@ public OnPlayerEnterVehicle(playerid, vehicleid, ispassenger)
 public OnPlayerExitVehicle(playerid, vehicleid)
 {
 	KillTimer(fueltimer[playerid]);
+	KillTimer(testdrivetimer[playerid]);
+
+	if(TestDriveStatus[playerid] == 1)
+		TestDrive(playerid, vehicleid);
 	return 1;
 }
 
@@ -702,6 +972,65 @@ public OnVehicleSpawn(vehicleid)
 {
 	if(Vehicle[vehicleid][vPrice] == 0 && strcmp(Vehicle[vehicleid][vOwner], "0") == 0)
 		Vehicle[vehicleid][vFuel] = 100.0;
+
+	if(IsValidCivilianVehicle(vehicleid))
+		ChangeVehicleColor(vehicleid, random(129), random(129));
+	else if(IsValidDealershipVehicle(vehicleid))
+		ChangeVehicleColor(vehicleid, 128 + random(128), 128 + random(128));
+
+	return 1;
+}
+
+public OnPlayerEnterRaceCheckpoint(playerid)
+{
+	if(isTakingTest[playerid] == 1)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1471.3604, -2375.5933, 13.3828, 1343.7460, -2375.6699, 21.702, 5.0);
+		isTakingTest[playerid] = 2;
+	}
+	else if(isTakingTest[playerid] == 2)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1343.7460, -2375.6699, 21.702, 1331.6577, -2332.3711, 13.3828, 5.0);
+		isTakingTest[playerid] = 3;
+	}
+	else if(isTakingTest[playerid] == 3)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1331.6577, -2332.3711, 13.3828, 1442.3984, -2685.2473, 13.3750, 5.0);
+		isTakingTest[playerid] = 4;
+	}
+	else if(isTakingTest[playerid] == 4)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 1, 1442.3984, -2685.2473, 13.3750, 0, 0, 0, 5.0);
+		isTakingTest[playerid] = 5;
+	}
+	else if(isTakingTest[playerid] == 5)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		isTakingTest[playerid] = 0;
+		SetPlayerPos(playerid, 1450.8639, -2287.0969, 13.5469);
+		SafeGivePlayerMoney(playerid, -50);
+		ShowPlayerDialog(playerid, DIALOG_DMV, DIALOG_STYLE_MSGBOX, "Driver's License", "Congratulations, you received the driver's license. For more information, type /vhelp.", "Okay", "");
+		Player[playerid][pDriversLicense] = 100;
+	}
+}
+
+public OnPlayerDeath(playerid)
+{
+	SetPlayerInterior(playerid, 0);
+	SetPlayerVirtualWorld(playerid, 0);
+	return 1;
+}
+
+public OnVehicleDeath(vehicleid, killerid)
+{
+	KillTimer(testdrivetimer[killerid]);
+
+	if(TestDriveStatus[killerid] == 1)
+		TestDrive(killerid, vehicleid);
 }
 
 // -----------------------------------User Defined Functions-------------------------------------
@@ -738,6 +1067,26 @@ stock GetVehicleName(vehicleid) // Returns the vehicle name for a vehicle id
 	new string[256];
 	format(string, sizeof(string), "%s", VehicleNames[GetVehicleModel(vehicleid) - 400]);
 	return string;
+}
+
+stock GetClosestVehicle(playerid) // Returns the ID of the vehicle that is closest to the player
+{
+	new Float:x, Float:y, Float:z;
+	new Float:dist, Float:closedist=9999, closeveh;
+
+	for(new i = 1; i < MAX_VEHICLES; i++)
+	{
+		if(GetVehiclePos(i, x, y, z))
+		{
+			dist = GetPlayerDistanceFromPoint(playerid, x, y, z);
+			if(dist < closedist)
+			{
+				closedist = dist;
+				closeveh = i;
+			}
+		}
+	}
+	return closeveh;
 }
 
 public CheckAccountExist(playerid) // Checks if a player is already registered or not and shows the login/register dialog accordingly
@@ -809,6 +1158,12 @@ public OnAccountRegister(playerid) // Assigns the information to the player vari
 	Player[playerid][pVehicle6] = 0;
 	Player[playerid][pVehicle7] = 0;
 	Player[playerid][pVehicle8] = 0;
+	Player[playerid][pKey1] = 0;
+	Player[playerid][pKey2] = 0;
+	Player[playerid][pKey3] = 0;
+	Player[playerid][pKey4] = 0;
+	Player[playerid][pKey5] = 0;
+	Player[playerid][pDriversLicense] = 0;
 
 	new hour, minute, second;
 	new year, month, day;
@@ -907,16 +1262,22 @@ public SaveAccount(playerid) // Saves the information to the .ini file
 		format(line, sizeof(line), "Vehicle4=%d\r\n", Player[playerid][pVehicle4]);
 		fwrite(handle, line);
 
-		format(line, sizeof(line), "Vehicle5=%d\r\n", Player[playerid][pVehicle5]);
+		format(line, sizeof(line), "Key1=%d\r\n", Player[playerid][pKey1]);
 		fwrite(handle, line);
 
-		format(line, sizeof(line), "Vehicle6=%d\r\n", Player[playerid][pVehicle6]);
+		format(line, sizeof(line), "Key2=%d\r\n", Player[playerid][pKey2]);
 		fwrite(handle, line);
 
-		format(line, sizeof(line), "Vehicle7=%d\r\n", Player[playerid][pVehicle7]);
+		format(line, sizeof(line), "Key3=%d\r\n", Player[playerid][pKey3]);
 		fwrite(handle, line);
 
-		format(line, sizeof(line), "Vehicle8=%d\r\n", Player[playerid][pVehicle8]);
+		format(line, sizeof(line), "Key4=%d\r\n", Player[playerid][pKey4]);
+		fwrite(handle, line);
+
+		format(line, sizeof(line), "Key5=%d\r\n", Player[playerid][pKey5]);
+		fwrite(handle, line);
+
+		format(line, sizeof(line), "DriversLicense=%d\r\n", Player[playerid][pDriversLicense]);
 		fwrite(handle, line);
 
 		fclose(handle);
@@ -926,6 +1287,7 @@ public SaveAccount(playerid) // Saves the information to the .ini file
 
 public OnAccountLoad(playerid) // Loads player data from the .ini file to the player variables 
 {
+	new hour, minute, second;
 	new filename[64], line[256], s, key[64];
 	new File:handle;
 
@@ -996,6 +1358,18 @@ public OnAccountLoad(playerid) // Loads player data from the .ini file to the pl
 			Player[playerid][pVehicle7] = strval(line[s]);
 		else if(strcmp(key, "Vehicle8") == 0)
 			Player[playerid][pVehicle8] = strval(line[s]);
+		else if(strcmp(key, "Key1") == 0)
+			Player[playerid][pKey1] = strval(line[s]);
+		else if(strcmp(key, "Key2") == 0)
+			Player[playerid][pKey2] = strval(line[s]);
+		else if(strcmp(key, "Key3") == 0)
+			Player[playerid][pKey3] = strval(line[s]);
+		else if(strcmp(key, "Key4") == 0)
+			Player[playerid][pKey4] = strval(line[s]);
+		else if(strcmp(key, "Key5") == 0)
+			Player[playerid][pKey5] = strval(line[s]);
+		else if(strcmp(key, "DriversLicense") == 0)
+			Player[playerid][pDriversLicense] = strval(line[s]);
 	}
 	fclose(handle);
 
@@ -1015,6 +1389,9 @@ public OnAccountLoad(playerid) // Loads player data from the .ini file to the pl
 
 	if(Player[playerid][pIsMuted] == 1)
 		mutetimer[playerid] = SetTimerEx("DecMuteTime", 1000, 1, "i", playerid);
+
+	gettime(hour, minute, second);
+	SetPlayerTime(playerid, hour, minute);
 
 	return 1;
 }
@@ -1151,8 +1528,12 @@ public UpdateDealership(dealershipid, removeold) // Updates dealership data and 
 	if(DealershipStatus[dealershipid] == 1)
 	{
 		if(removeold == 1)
+		{
 			DestroyPickup(DealershipPickup[dealershipid]);
+			DestroyDynamicMapIcon(DealershipIcon[dealershipid]);
+		}
 		DealershipPickup[dealershipid] = CreatePickup(1239, 1, DealershipPosition[dealershipid][0], DealershipPosition[dealershipid][1], DealershipPosition[dealershipid][2]);
+		DealershipIcon[dealershipid] = CreateDynamicMapIcon(DealershipPosition[dealershipid][0], DealershipPosition[dealershipid][1], DealershipPosition[dealershipid][2], 55, 0, -1, -1, -1, 100.0, MAPICON_LOCAL, -1);
 	}
 	return 1;
 }
@@ -1253,6 +1634,9 @@ public UpdateVehicle(vehicleid, removeold) // Updates vehicle data and creates l
 			}
 
 			ChangeVehiclePaintjob(vid, Vehicle[vehicleid][vPaintjob]);
+
+			Vehicle[vid][vFuel] = 100.0;
+
 			return 1;
 		}
 		else if(IsValidDealershipVehicle(vehicleid) == 1)
@@ -1285,6 +1669,9 @@ public SaveVehicle(vehicleid) // Saves vehicle data to .ini file
 	new File:handle = fopen(filename, io_write);
 
 	format(line, sizeof(line), "Status=%d\r\n", Vehicle[vehicleid][vStatus]);
+	fwrite(handle, line);
+
+	format(line, sizeof(line), "ID=%d\r\n", Vehicle[vehicleid][vID]);
 	fwrite(handle, line);
 
 	format(line, sizeof(line), "Model=%d\r\n", Vehicle[vehicleid][vModel]);
@@ -1323,6 +1710,9 @@ public SaveVehicle(vehicleid) // Saves vehicle data to .ini file
 	format(line, sizeof(line), "Fuel=%f\r\n", Vehicle[vehicleid][vFuel]);
 	fwrite(handle, line);
 
+	format(line, sizeof(line), "Lock=%d\r\n", Vehicle[vehicleid][vLock]);
+	fwrite(handle, line);
+
 	for(new m = 0; m < 14; m++)
 	{
 		format(line, sizeof(line), "Mod%d=%d\r\n", Vehicle[vehicleid][vMods][m]);
@@ -1355,6 +1745,8 @@ public LoadVehicles() // Loads vehicle data from .ini file
 			strmid(key, line, 0, s++);
 			if(strcmp(key, "Status") == 0)
 				Vehicle[i][vStatus] = strval(line[s]);
+			else if(strcmp(key, "ID") == 0)
+				Vehicle[i][vID] = strval(line[s]);
 			else if(strcmp(key, "Model") == 0)
 				Vehicle[i][vModel] = strval(line[s]);
 			else if(strcmp(key, "Position") == 0)
@@ -1373,17 +1765,19 @@ public LoadVehicles() // Loads vehicle data from .ini file
 				Vehicle[i][vPrice] = strval(line[s]);
 			else if(strcmp(key, "Owner") == 0)
 				sscanf(line[s], "s[128]", Vehicle[i][vOwner]);
-			else if(strcmp(key, "vCarPlate") == 0)
+			else if(strcmp(key, "CarPlate") == 0)
 				sscanf(line[s], "s[128]", Vehicle[i][vCarPlate]);
 			else if(strcmp(key, "Fuel") == 0)
 				sscanf(line[s], "f", Vehicle[i][vFuel]);
+			if(strcmp(key, "Lock") == 0)
+				Vehicle[i][vLock] = strval(line[s]);
 		}
 		fclose(handle);
 		if(Vehicle[i][vStatus] == 1)
 			count++;
 	}
 	printf("  Loaded %d vehicles", count);
-	vehicles = count;
+	vehicles = count + 1;
 }
 
 public DecreaseFuel(playerid) // Decreases fuel by 0.035
@@ -1407,8 +1801,7 @@ public DecreaseFuel(playerid) // Decreases fuel by 0.035
 
 			format(string, sizeof(string), "Fuel: %d%%", floatround(Vehicle[vehicleid][vFuel]));
 			PlayerTextDrawSetString(playerid, VehicleMeter[playerid], string);
-			// Vehicle[vehicleid][vFuel] -= 0.035;
-			Vehicle[vehicleid][vFuel] -= GetPlayerSpeed(playerid, true)/1000.0;
+			Vehicle[vehicleid][vFuel] -= GetPlayerSpeed(playerid)/1000.0;
 		}
 	}
 	return 1;
@@ -1468,6 +1861,10 @@ public Payday(playerid) // Gives payday at every 00 minutes and 00 seconds
 			SendClientMessage(playerid, COLOR_KHAKI, "You have obtained enough respect points to buy the next level.");
 			SendClientMessage(playerid, COLOR_KHAKI, "Use /buylevel to buy the next level.");
 		}
+
+		for(new i = 0; i < MAX_PLAYERS; i++)
+			SetPlayerTime(i, hour, minute);
+		SetWeather(1);
 	}
 }
 
@@ -1527,11 +1924,6 @@ public LoadObjects() // Loads objects in the server
 	CreateObject(1232, -2864.63818, 435.35443, 6.59930,   356.85840, 0.00000, 3.14159);
 	CreateObject(1232, -2926.80737, 418.13971, 6.59930,   356.85840, 0.00000, 3.14159);
 	CreateObject(8168, -2864.22925, 505.14557, 5.74485,   0.00000, 0.00000, 16.56001);
-	CreateObject(19313, -2868.21436, 486.94171, 3.87600,   0.00000, -180.00000, 0.00000);
-	CreateObject(19313, -2924.18335, 486.89532, 3.87600,   0.00000, -180.00000, 0.00000);
-	CreateObject(19313, -2910.19775, 486.90952, 3.87600,   0.00000, -180.00000, 0.00000);
-	CreateObject(19313, -2896.21655, 486.91205, 3.87600,   0.00000, -180.00000, 0.00000);
-	CreateObject(19313, -2882.19824, 486.92218, 3.87600,   0.00000, -180.00000, 0.00000);
 
 	CreateObject(3465, 603.48438, 1707.23438, 7.50950,   0.00000, 0.00000, -54.12000);
 	CreateObject(3465, 620.53131, 1682.46094, 7.50950,   0.00000, 0.00000, -54.12000);
@@ -1701,7 +2093,7 @@ public LoadObjects() // Loads objects in the server
 	CreateObject(1278, 1169.06323, 1076.93604, 23.93750,   0.00000, 0.00000, 266.67380);
 	CreateObject(1278, 977.19507, 1072.55383, 23.93750,   0.00000, 0.00000, 128.23068);
 	CreateObject(1278, 1035.41504, 1160.81812, 23.76633,   0.00000, 0.00000, -176.66508);
-	CreateObject(19912, 1021.82141, 1161.85144, 12.60217,   0.00000, 0.00000, -175.44020);
+	vipgate = CreateObject(19912, 1021.82141, 1161.85144, 12.60217,   0.00000, 0.00000, -175.44020);
 	CreateObject(19313, 986.81732, 1161.42944, 13.12437,   0.00000, 0.00000, 360.23764);
 	CreateObject(19313, 1000.82953, 1161.52625, 13.12437,   0.00000, 0.00000, 360.23764);
 	CreateObject(19313, 1046.19910, 1155.95569, 13.12437,   0.00000, 0.00000, 259.31854);
@@ -1728,6 +2120,60 @@ public LoadObjects() // Loads objects in the server
 	CreateObject(16375, 1066.51538, 1000.76605, 54.37277,   0.00000, 0.00000, 0.00000);
 	CreateObject(16375, 1142.10229, 981.11664, 25.97521,   0.00000, 0.00000, 0.00000);
 	CreateObject(16375, 1084.59985, 970.56201, 39.14843,   0.00000, 0.00000, 0.00000);
+
+	// Admin Arena
+	CreateObject(19313, -504.41858, 2633.48560, 55.82880,   0.00000, 0.00000, 88.32004);
+	CreateObject(19313, -583.29041, 2546.01245, 55.82880,   0.00000, 0.00000, 0.36000);
+	CreateObject(19313, -504.76810, 2619.46826, 55.82880,   0.00000, 0.00000, 88.98001);
+	CreateObject(19313, -505.02722, 2605.45703, 55.82880,   0.00000, 0.00000, 88.98001);
+	CreateObject(19313, -505.51138, 2579.89111, 55.82880,   0.00000, 0.00000, 88.98001);
+	CreateObject(19313, -505.73450, 2565.82446, 55.82880,   0.00000, 0.00000, 88.74001);
+	admingate = CreateObject(19912, -505.09534, 2598.45361, 55.32130,   0.00000, 0.00000, 88.98000);
+	CreateObject(19313, -506.11292, 2553.10400, 55.82880,   0.00000, 0.00000, 87.84000);
+	CreateObject(19313, -581.11420, 2640.50854, 55.82880,   0.00000, 0.00000, 0.00000);
+	CreateObject(19313, -527.37201, 2546.38086, 55.82880,   0.00000, 0.00000, 0.00000);
+	CreateObject(19313, -541.34851, 2546.33057, 55.82880,   0.00000, 0.00000, 0.36000);
+	CreateObject(19313, -555.32391, 2546.23804, 55.82880,   0.00000, 0.00000, 0.36000);
+	CreateObject(19313, -569.30493, 2546.13477, 55.82880,   0.00000, 0.00000, 0.36000);
+	CreateObject(19313, -513.39746, 2546.24487, 55.82880,   0.00000, 0.00000, -1.14000);
+	CreateObject(19313, -511.22006, 2640.46167, 55.82880,   0.00000, 0.00000, -0.06000);
+	CreateObject(19313, -525.21661, 2640.45581, 55.82880,   0.00000, 0.00000, 0.00000);
+	CreateObject(19313, -539.18768, 2640.46338, 55.82880,   0.00000, 0.00000, 0.00000);
+	CreateObject(19313, -553.17932, 2640.43286, 55.82880,   0.00000, 0.00000, 0.00000);
+	CreateObject(19313, -567.13922, 2640.45313, 55.82880,   0.00000, 0.00000, 0.00000);
+	CreateObject(3267, -551.70306, 2611.12354, 65.37940,   0.00000, 0.00000, -417.17990);
+	CreateObject(3267, -551.83105, 2576.04175, 65.37943,   0.00000, 0.00000, -126.96036);
+	CreateObject(8841, -524.48004, 2617.14941, 55.76151,   0.00000, 0.00000, 90.00000);
+	CreateObject(8841, -524.26270, 2569.43896, 55.66703,   0.00000, 0.00000, 90.00000);
+	CreateObject(16375, -542.64771, 2583.21997, 64.87590,   0.00000, 0.00000, 0.00000);
+	CreateObject(8168, -573.58179, 2561.94214, 54.36704,   0.00000, 0.00000, 106.49994);
+	CreateObject(6976, -571.32367, 2572.67920, 55.00631,   0.00000, 0.00000, 181.07996);
+	CreateObject(19865, -502.87985, 2598.52539, 52.38456,   0.00000, 0.00000, -103.07993);
+	CreateObject(19865, -483.14243, 2588.05371, 51.73289,   0.00000, 0.00000, -89.15996);
+	CreateObject(19865, -502.77713, 2587.36133, 52.38456,   0.00000, 0.00000, -77.03994);
+	CreateObject(19865, -483.32611, 2597.94775, 51.72101,   0.00000, 0.00000, -90.23993);
+	CreateObject(19865, -492.92996, 2587.98193, 52.38456,   0.00000, 0.00000, -90.11994);
+	CreateObject(19865, -487.99069, 2587.95947, 52.04922,   0.00000, 0.00000, -89.15996);
+	CreateObject(19865, -497.91028, 2587.95190, 52.38456,   0.00000, 0.00000, -89.33995);
+	CreateObject(19865, -498.01425, 2597.96899, 52.38456,   0.00000, 0.00000, -90.23993);
+	CreateObject(19865, -493.05399, 2597.95215, 52.38456,   0.00000, 0.00000, -90.23993);
+	CreateObject(19865, -488.17099, 2597.93481, 52.05836,   0.00000, 0.00000, -90.23993);
+	CreateObject(16778, -482.64249, 2601.74097, 52.07548,   0.00000, 0.00000, -188.87999);
+	CreateObject(16093, -487.38208, 2578.47852, 56.48380,   0.00000, 0.00000, -272.75989);
+	CreateObject(16638, -486.40988, 2578.52173, 54.74685,   0.00000, 0.00000, -272.75989);
+	CreateObject(16375, -562.24866, 2583.26245, 64.89590,   0.00000, 0.00000, 0.00000);
+	CreateObject(7072, -547.93079, 2593.31958, 72.65067,   0.00000, 0.00000, 0.00000);
+
+	// VIP interior
+	CreateObject(6959, 1091.67822, 1115.43372, -90.88270,   0.00000, 0.00000, 0.00000);
+	CreateObject(6959, 1091.71472, 1075.49377, -90.88270,   0.00000, 0.00000, 0.00000);
+	CreateObject(6959, 1091.76221, 1035.58276, -90.88270,   0.00000, 0.00000, 0.00000);
+	CreateObject(6959, 1133.06897, 1115.25134, -90.88270,   0.00000, 0.00000, 0.00000);
+	CreateObject(6959, 1050.37866, 1075.48840, -90.88270,   0.00000, 0.00000, 0.00000);
+	CreateObject(6959, 1050.37402, 1115.39563, -90.88270,   0.00000, 0.00000, 0.00000);
+	CreateObject(6959, 1050.47302, 1035.58215, -90.88270,   0.00000, 0.00000, 0.00000);
+	CreateObject(6959, 1132.56750, 1035.66455, -90.88270,   0.00000, 0.00000, 0.00000);
+	CreateObject(6959, 1132.82690, 1075.31348, -90.88270,   0.00000, 0.00000, 0.00000);
 
 	return 1;
 }
@@ -1931,6 +2377,8 @@ public RemoveObjects(playerid) // Removes objects from the server
 	RemoveBuildingForPlayer(playerid, 680, 1042.1328, 1181.8438, 9.7031, 0.25);
 	RemoveBuildingForPlayer(playerid, 647, 1038.2656, 1177.1641, 11.1250, 0.25);
 
+	RemoveBuildingForPlayer(playerid, 10249, -1663.1875, 1214.5547, 16.2109, 0.25); // DS 5 objects
+
 	return 1;
 }
 
@@ -1952,7 +2400,6 @@ public GetFreeVehicleID() // Returns the free id from the total vehicles to repl
 	{
 		if(Vehicle[i][vStatus] == 0)
 		{
-			printf("%d", i);
 			return i;
 		}
 	}
@@ -1969,14 +2416,6 @@ public CheckFreePlayerSlot(playerid) // Returns the free vehicle slot of player
 		return 3;
 	else if(Player[playerid][pVehicle4] == 0)
 		return 4;
-	else if(Player[playerid][pVehicle5] == 0 && Player[playerid][pVipLevel] > 0)
-		return 5;
-	else if(Player[playerid][pVehicle6] == 0 && Player[playerid][pVipLevel] > 0)
-		return 6;
-	else if(Player[playerid][pVehicle7] == 0 && Player[playerid][pVipLevel] > 0)
-		return 7;
-	else if(Player[playerid][pVehicle8] == 0 && Player[playerid][pVipLevel] > 0)
-		return 8;
 	return 0;
 }
 
@@ -1989,6 +2428,8 @@ public IsValidPlayerVehicle(vehicleid) // Checks if the vehicle is owner by a pl
 
 public UpdatePlayerVehicle(vehicleid, removeold) // Spawns the vehicle owbed by the player only if the player is connected
 {
+	new engine, lights, alarm, doors, bonnet, boot, objective;
+
 	if(IsValidPlayerVehicle(vehicleid) == 1)
 	{
 		if(removeold == 1)
@@ -2001,12 +2442,15 @@ public UpdatePlayerVehicle(vehicleid, removeold) // Spawns the vehicle owbed by 
 
 		ChangeVehiclePaintjob(vid, Vehicle[vehicleid][vPaintjob]);
 
-		SetVehicleNumberPlate(vehicleid, Vehicle[vehicleid][vCarPlate]);
+		SetVehicleNumberPlate(vid, Vehicle[vehicleid][vCarPlate]);
+
+		GetVehicleParamsEx(vehicleid, engine, lights, alarm, doors, bonnet, boot, objective);
+		SetVehicleParamsEx(vehicleid, engine, lights, alarm, Vehicle[vehicleid][vLock], bonnet, boot, objective);
 	}
 	return 1;
 }
 
-public Speedo(playerid, vehicleid)
+public Speedo(playerid, vehicleid) // Shows the speedometer
 {
 	new engine, lights, alarm, doors, bonnet, boot, objective, string[128];
 
@@ -2025,16 +2469,37 @@ public Speedo(playerid, vehicleid)
 				KillTimer(fueltimer[playerid]);
 			}
 
-			format(string, sizeof(string), "Speed: %d Km/h", GetPlayerSpeed(playerid, true));			
+			format(string, sizeof(string), "Speed: %d Km/h", GetPlayerSpeed(playerid));			
 			PlayerTextDrawSetString(playerid, Speedometer[playerid], string);
 		}
 	}
 	return 1;
 }
 
-stock GetPlayerSpeed(playerid, bool:distance)
+public LockStatus(playerid, vehicleid) // Shows the lock status of the vehicle
 {
-    new Float:X, Float:Y, Float:Z, Float:rotation;
+	new engine, lights, alarm, doors, bonnet, boot, objective;
+
+	if(GetPlayerState(playerid) == PLAYER_STATE_DRIVER || GetPlayerState(playerid) == PLAYER_STATE_PASSENGER)
+	{
+		new vid = GetPlayerVehicleID(playerid);
+
+		GetVehicleParamsEx(vid, engine, lights, alarm, doors, bonnet, boot, objective);
+
+		if(IsValidDealershipVehicle(vid) == 0 && IsValidCivilianVehicle(vid) == 0)
+		{
+			if(doors == 1)
+				PlayerTextDrawSetString(playerid, LockText[playerid], "Status: ~r~Locked");
+			else
+				PlayerTextDrawSetString(playerid, LockText[playerid], "Status: ~g~Unlocked");
+		}
+	}
+	return 1;
+}
+
+stock GetPlayerSpeed(playerid) // Converts velocity into speed and returns it
+{
+    new Float:X, Float:Y, Float:Z;
 
     if(IsPlayerInAnyVehicle(playerid))
     	GetVehicleVelocity(GetPlayerVehicleID(playerid), X, Y, Z);
@@ -2055,7 +2520,7 @@ stock GetPlayerSpeed(playerid, bool:distance)
     return floatround(total);
 }
 
-public settime(playerid)
+public settime(playerid) // Shows the global date and time
 {
 	new string[256], year, month, day, hours, minutes, seconds;
 
@@ -2066,6 +2531,29 @@ public settime(playerid)
 
 	format(string, sizeof string, "%s%d:%s%d:%s%d", (hours < 10) ? ("0") : (""), hours, (minutes < 10) ? ("0") : (""), minutes, (seconds < 10) ? ("0") : (""), seconds);
 	TextDrawSetString(Time, string);
+}
+
+public CreateDMV()
+{
+	CreatePickup(1239, 1, 1450.8639, -2287.0969, 13.5469, 0);
+	CreateDynamic3DTextLabel("DMV\nType /taketest\nto take the test\nfor driver's license.", COLOR_WHITE, 1450.8639, -2287.0969, 13.5469, 100.0, INVALID_PLAYER_ID, INVALID_VEHICLE_ID, 0, -1, -1, -1, 100.0, -1);
+	return 1;
+}
+
+public CloseGate(gateid)
+{
+	
+	if(gateid == vipgate)
+	{
+		MoveObject(gateid, 1021.82141, 1161.85144, 12.60217, 2.0, -1000.0, -1000.0, -1000.0);
+		vipgatestatus = 0;
+	}
+	else if(gateid == admingate)
+	{
+		MoveObject(gateid, -505.09534, 2598.45361, 55.32130, 2.0, -1000.0, -1000.0, -1000.0);
+		admingatestatus = 0;
+	}
+	return 1;
 }
 
 // ------------------------Safe Money Functions (Anti - Money Cheat)------------------------------
@@ -2101,6 +2589,47 @@ public SafeGetPlayerMoney(playerid) // Returns the server - side cash of the pla
 public DestroyTempVehicle(vehicleid) // Destroys a vehicle from the server
 {
 	DestroyVehicle(vehicleid);
+	return 1;
+}
+
+public CheckFreePlayerKey(playerid)
+{
+	if(Player[playerid][pKey1] == 0)
+		return 1;
+	else if(Player[playerid][pKey2] == 0)
+		return 2;
+	else if(Player[playerid][pKey3] == 0)
+		return 3;
+	else if(Player[playerid][pKey4] == 0)
+		return 4;
+	return 0;
+}
+
+public CheckVehicleHealth()
+{
+	new Float:health;
+	for(new i = 1; i < MAX_VEHICLES; i++)
+	{
+		GetVehicleHealth(i, health);
+		if(health <= 250)
+		{
+			SetVehicleToRespawn(i);
+		}
+	}
+	return 1;
+}
+
+public StartTest(playerid)
+{
+	new vid;
+
+	vid = CreateVehicle(527, 1426.1364, -2285.6741, 13.3828, 0, 1, 1, -1);
+
+	PutPlayerInVehicle(playerid, vid, 0);
+
+	Vehicle[vid][vFuel] = 100.0;
+
+	SetPlayerRaceCheckpoint(playerid, 0, 1472.2115, -2334.5000, 13.3828, 1471.3604, -2375.5933, 13.3828, 5.0);
 	return 1;
 }
 
@@ -3315,6 +3844,12 @@ CMD:spawnv(playerid, params[]) // Spawns a vehicle and puts the player in it (au
 
 		Vehicle[vid][vFuel] = 100.0;
 
+		new vw = GetPlayerVirtualWorld(playerid);
+		new int = GetPlayerInterior(playerid);
+
+		SetVehicleVirtualWorld(vid, vw);
+		LinkVehicleToInterior(vid, int);
+
 		if(IsBicycle(vid))
 			ToggleEngine(vid, VEHICLE_PARAMS_ON);
 
@@ -3631,37 +4166,38 @@ CMD:createdvehicle(playerid, params[]) // Creates a dealership vehicle
 		GetPlayerPos(playerid, X, Y, Z);
 		GetPlayerFacingAngle(playerid, angle);
 
-		for(new i = 1; i < MAX_VEHICLES; i++)
+		// for(new i = 1; i < MAX_VEHICLES; i++)
+		// {
+		if(Vehicle[vehicles][vStatus] == 0)
 		{
-			if(Vehicle[i][vStatus] == 0)
-			{
-				Vehicle[i][vStatus] = 1;
-				Vehicle[i][vModel] = modelid;
-				Vehicle[i][vPosition][0] = X;
-				Vehicle[i][vPosition][1] = Y;
-				Vehicle[i][vPosition][2] = Z;
-				Vehicle[i][vAngle] = angle;
-				Vehicle[i][vPrice] = price;
-				valstr(Vehicle[i][vOwner], 0);
-				Vehicle[i][vInterior] = GetPlayerInterior(playerid);
-				Vehicle[i][vVirtualWorld] = GetPlayerVirtualWorld(playerid);
-				valstr(Vehicle[i][vCarPlate], 0);
+			Vehicle[vehicles][vStatus] = 1;
+			Vehicle[vehicles][vID] = vehicles;
+			Vehicle[vehicles][vModel] = modelid;
+			Vehicle[vehicles][vPosition][0] = X;
+			Vehicle[vehicles][vPosition][1] = Y;
+			Vehicle[vehicles][vPosition][2] = Z;
+			Vehicle[vehicles][vAngle] = angle;
+			Vehicle[vehicles][vPrice] = price;
+			valstr(Vehicle[vehicles][vOwner], 0);
+			Vehicle[vehicles][vInterior] = GetPlayerInterior(playerid);
+			Vehicle[vehicles][vVirtualWorld] = GetPlayerVirtualWorld(playerid);
+			valstr(Vehicle[vehicles][vCarPlate], 0);
 
-				UpdateVehicle(i, 0);
-				SaveVehicle(i);
+			UpdateVehicle(vehicles, 0);
+			SaveVehicle(vehicles);
 
-				format(string, sizeof(string), "Created vehicle %d for dealership %d", i, dealershipid);
-				SendClientMessage(playerid, COLOR_PINK, string);
+			format(string, sizeof(string), "Created vehicle %d for dealership %d", vehicles, dealershipid);
+			SendClientMessage(playerid, COLOR_PINK, string);
 
-				vehicles++;
+			vehicles++;
 
-				gettime(hour, minute, second);
-				getdate(year, month, day);
+			gettime(hour, minute, second);
+			getdate(year, month, day);
 
-				format(acmdlogstring, sizeof(acmdlogstring), "Command: /addvehicle %d %s %d [%d/%d/%d] [%d:%d:%d]", dealershipid, model, price, day, month, year, hour, minute, second);
-				AdminCommandLog(playerid, acmdlogstring);
-				return 1;
-			}
+			format(acmdlogstring, sizeof(acmdlogstring), "Command: /addvehicle %d %s %d [%d/%d/%d] [%d:%d:%d]", dealershipid, model, price, day, month, year, hour, minute, second);
+			AdminCommandLog(playerid, acmdlogstring);
+			return 1;
+			// }
 		}
 	}
 	else
@@ -3731,24 +4267,25 @@ CMD:createcvehicle(playerid, params[]) // Creates a civilian vehicle
 
 		for(new i = 1; i < MAX_VEHICLES; i++)
 		{
-			if(Vehicle[i][vStatus] == 0)
+			if(Vehicle[vehicles][vStatus] == 0)
 			{
-				Vehicle[i][vStatus] = 1;
-				Vehicle[i][vModel] = modelid;
-				Vehicle[i][vPosition][0] = X;
-				Vehicle[i][vPosition][1] = Y;
-				Vehicle[i][vPosition][2] = Z;
-				Vehicle[i][vAngle] = angle;
-				Vehicle[i][vPrice] = 0;
-				valstr(Vehicle[i][vOwner], 0);
-				Vehicle[i][vInterior] = GetPlayerInterior(playerid);
-				Vehicle[i][vVirtualWorld] = GetPlayerVirtualWorld(playerid);
-				valstr(Vehicle[i][vCarPlate], 0);
+				Vehicle[vehicles][vStatus] = 1;
+				Vehicle[vehicles][vID] = vehicles;
+				Vehicle[vehicles][vModel] = modelid;
+				Vehicle[vehicles][vPosition][0] = X;
+				Vehicle[vehicles][vPosition][1] = Y;
+				Vehicle[vehicles][vPosition][2] = Z;
+				Vehicle[vehicles][vAngle] = angle;
+				Vehicle[vehicles][vPrice] = 0;
+				valstr(Vehicle[vehicles][vOwner], 0);
+				Vehicle[vehicles][vInterior] = GetPlayerInterior(playerid);
+				Vehicle[vehicles][vVirtualWorld] = GetPlayerVirtualWorld(playerid);
+				valstr(Vehicle[vehicles][vCarPlate], 0);
 
-				UpdateVehicle(i, 0);
-				SaveVehicle(i);
+				UpdateVehicle(vehicles, 0);
+				SaveVehicle(vehicles);
 
-				format(string, sizeof(string), "Created civilian vehicle %d", i);
+				format(string, sizeof(string), "Created civilian vehicle %d", vehicles);
 				SendClientMessage(playerid, COLOR_PINK, string);
 
 				vehicles++;
@@ -3756,7 +4293,7 @@ CMD:createcvehicle(playerid, params[]) // Creates a civilian vehicle
 				gettime(hour, minute, second);
 				getdate(year, month, day);
 
-				format(acmdlogstring, sizeof(acmdlogstring), "Command: /createcvehicle %d %s %d [%d/%d/%d] [%d:%d:%d]", i, model, day, month, year, hour, minute, second);
+				format(acmdlogstring, sizeof(acmdlogstring), "Command: /createcvehicle %d %s %d [%d/%d/%d] [%d:%d:%d]", vehicles, model, day, month, year, hour, minute, second);
 				AdminCommandLog(playerid, acmdlogstring);
 				return 1;
 			}
@@ -3806,7 +4343,7 @@ CMD:deletecvehicle(playerid, params[]) // Deletes a civilian vehicle
 CMD:moveds(playerid, params[])
 	return cmd_movedealership(playerid, params);
 
-CMD:movedealership(playerid, params[])
+CMD:movedealership(playerid, params[]) // Moves a dealership to the player's current position
 {
 	new dealershipid, day, month, year, hour, minute, second, acmdlogstring[128], Float:X, Float:Y, Float:Z;
 
@@ -3840,7 +4377,7 @@ CMD:movedealership(playerid, params[])
 CMD:mdv(playerid, params[])
 	return cmd_movedvehicle(playerid, params);
 
-CMD:movedvehicle(playerid, params[])
+CMD:movedvehicle(playerid, params[]) // Moves a dealership vehicle to the player's current position
 {
 	new vid, Float:X, Float:Y, Float:Z, day, month, year, hour, minute, second, acmdlogstring[128], Float:angle;
 
@@ -3875,6 +4412,28 @@ CMD:movedvehicle(playerid, params[])
 	return 1;
 }
 
+CMD:flip(playerid, params[]) // Flips the car
+{
+	if(Player[playerid][pAdminLevel] >= 1 || IsPlayerAdmin(playerid))
+	{
+		if(IsPlayerInAnyVehicle(playerid))
+		{
+			new vid = GetPlayerVehicleID(playerid);
+			new Float:angle;
+			GetVehicleZAngle(vid, angle);
+			SetVehicleZAngle(vid, angle);
+			SendClientMessage(playerid, COLOR_PINK, "Vehicle flipped.");
+		}
+		else
+		{
+			SendClientMessage(playerid, COLOR_NEUTRAL, "You are not in a vehicle.");
+		}
+	}
+	else
+		return SendClientMessage(playerid, COLOR_LIGHTNEUTRALBLUE, "You are not authorized to use this command!");
+	return 1;
+}
+
 // ------------------------------------------------------------------------------------------------
 CMD:up(playerid, params[]) // Makes the player jump into the air
 {
@@ -3890,6 +4449,27 @@ CMD:up(playerid, params[]) // Makes the player jump into the air
 		getdate(year, month, day);
 
 		format(acmdlogstring, sizeof(acmdlogstring), "Command: /up [%d/%d/%d] [%d:%d:%d]", day, month, year, hour, minute, second);
+		AdminCommandLog(playerid, acmdlogstring);
+	}
+	else
+		return SendClientMessage(playerid, COLOR_LIGHTNEUTRALBLUE, "You are not authorized to use this command!");
+	return 1;
+}
+
+CMD:down(playerid, params[]) // Makes the player jumps downwards
+{
+	new Float:X, Float:Y, Float:Z, day, month, year, hour, minute, second, acmdlogstring[128];
+
+	if(Player[playerid][pAdminLevel] >= 1 || IsPlayerAdmin(playerid))
+	{
+		GetPlayerPos(playerid, X, Y, Z);
+		SetPlayerPos(playerid, X, Y, Z - 5);
+		PlayerPlaySound(playerid, 1130, X, Y, Z - 5);
+
+		gettime(hour, minute, second);
+		getdate(year, month, day);
+
+		format(acmdlogstring, sizeof(acmdlogstring), "Command: /down [%d/%d/%d] [%d:%d:%d]", day, month, year, hour, minute, second);
 		AdminCommandLog(playerid, acmdlogstring);
 	}
 	else
@@ -4174,7 +4754,7 @@ CMD:report(playerid, params[]) // Sends a report to admins
 {
 	new text[256], day, month, year, hour, minute, second, reportstring[128], targetid;
 	if(sscanf(params, "s[256]", text))
-		return SendClientMessage(playerid, COLOR_LIGHTCYAN, "USAGE: /report [reason]");
+		return SendClientMessage(playerid, COLOR_LIGHTCYAN, "Syntax: /report [reason]");
 
 	if(GetPVarInt(playerid, "ReportPending") == 1)
 		return SendClientMessage(playerid, COLOR_LIGHTCYAN, "You already have a report pending.");
@@ -4215,6 +4795,8 @@ CMD:engine(playerid, params[]) // Starts and stops the engine of a vehicle
 {
 	new engine, lights, alarm, doors, bonnet, boot, objective, string[256];
 	new vid = GetPlayerVehicleID(playerid);
+	new vactualid = Vehicle[vid][vID];
+	new Float:tempfuel;
 
 	if(IsBicycle(vid))
 		return SendClientMessage(playerid, COLOR_NEUTRAL, "Your vehicle does not have an engine.");
@@ -4232,7 +4814,13 @@ CMD:engine(playerid, params[]) // Starts and stops the engine of a vehicle
 	}
 	else
 	{
-		if(Vehicle[vid][vFuel] > 0)
+		if(IsValidPlayerVehicle(vactualid) == 1)
+			tempfuel = Vehicle[vactualid][vFuel];
+		else
+			tempfuel = Vehicle[vid][vFuel];
+
+		// if(Vehicle[vid][vFuel] > 0)
+		if(tempfuel > 0)
 		{
 			engine = 1;
 			format(string, sizeof(string), "%s starts the engine of a %s.", GetName(playerid), GetVehicleName(vid));
@@ -4251,7 +4839,7 @@ CMD:eject(playerid, params[]) // Ejects a player out of the vehicle
 	new targetid, string[128];
 
 	if(sscanf(params, "u", targetid))
-		return SendClientMessage(playerid, COLOR_LIGHTCYAN, "USAGE: /eject [playerid]");
+		return SendClientMessage(playerid, COLOR_LIGHTCYAN, "Syntax: /eject [playerid]");
 
 	new vid = GetPlayerVehicleID(playerid);
 
@@ -4272,9 +4860,7 @@ CMD:eject(playerid, params[]) // Ejects a player out of the vehicle
 		for(new i = 0; i < MAX_PLAYERS; i++)
 		{
 			if((IsPlayerInVehicle(i, vid)) && (GetPlayerState(i) != PLAYER_STATE_DRIVER))
-			{
 				SendClientMessage(i, COLOR_SEAGREEN, string);
-			}
 		}
 
 		format(string, sizeof(string), "Vehicle driver %s has thrown you out of the vehicle.", GetName(playerid));
@@ -4352,6 +4938,7 @@ CMD:park(playerid, params[]) // Saves the player's vehicle's position
 			SaveVehicle(vid);
 
 			SetVehicleToRespawn(vid);
+			PutPlayerInVehicle(playerid, vid, 0);
 
 			SendClientMessage(playerid, COLOR_PINK, "You have parked your vehicle.");
 		}
@@ -4360,6 +4947,118 @@ CMD:park(playerid, params[]) // Saves the player's vehicle's position
 	}
 	else
 		return SendClientMessage(playerid, COLOR_NEUTRAL, "You are not driving a vehicle.");
+	return 1;
+}
+
+CMD:lock(playerid, params[]) // Locks or unlocks a player's vehicle
+{
+	new vehicleid, engine, lights, alarm, doors, bonnet, boot, objective, Float:X, Float:Y, Float:Z, vactualid;
+
+	if(GetPlayerState(playerid) == PLAYER_STATE_DRIVER)
+	{
+		vehicleid = GetPlayerVehicleID(playerid);
+		vactualid = Vehicle[vehicleid][vID];
+	}
+	else
+	{
+		vehicleid = GetClosestVehicle(playerid);
+		vactualid = Vehicle[vehicleid][vID];
+
+		GetVehiclePos(vehicleid, X, Y, Z);
+
+		if(IsPlayerInRangeOfPoint(playerid, 5.0, X, Y, Z) == 0)
+			return SendClientMessage(playerid, COLOR_NEUTRAL, "You are not inside or near a vehicle.");
+	}
+
+	if(Player[playerid][pKey1] != vactualid && Player[playerid][pKey2] != vactualid && Player[playerid][pKey3] != vactualid && Player[playerid][pKey4] != vactualid && Player[playerid][pKey5] != vactualid)
+		return SendClientMessage(playerid, COLOR_NEUTRAL, "You do not have keys for this vehicle.");
+
+	GetVehicleParamsEx(vehicleid, engine, lights, alarm, doors, bonnet, boot, objective);
+
+	if(doors == 0)
+	{
+		doors = 1;
+		Vehicle[vactualid][vLock] = 1;
+	}
+	else
+	{
+		doors = 0;
+		Vehicle[vactualid][vLock] = 0;
+	}
+
+	SetVehicleParamsEx(vehicleid, engine, lights, alarm, doors, bonnet, boot, objective);
+
+	SaveVehicle(vactualid);
+	SaveAccount(playerid);
+
+	return 1;
+}
+
+CMD:vplate(playerid, params[]) // Sets the car's number plate to a specific text
+{
+	new text[256], string[128];
+
+	if(GetPlayerState(playerid) == PLAYER_STATE_DRIVER)
+	{
+		if(sscanf(params, "s[256]", text))
+			return SendClientMessage(playerid, COLOR_LIGHTCYAN, "Syntax: /vplate [text]");
+
+		new vid = GetPlayerVehicleID(playerid);
+
+		if(strcmp(Vehicle[vid][vOwner], GetName(playerid)) == 0)
+		{
+			strmid(Vehicle[vid][vCarPlate], text, 0, strlen(text), 256);
+			SetVehicleNumberPlate(vid, text);
+
+			SaveVehicle(vid);
+
+			format(string, sizeof(string), "Vehicle plate set to: %s", text);
+			SendClientMessage(playerid, COLOR_PINK, string);
+		}
+		else
+			return SendClientMessage(playerid, COLOR_NEUTRAL, "You do no own this vehicle.");
+	}
+	else
+		return SendClientMessage(playerid, COLOR_NEUTRAL, "You are not in a vehicle.");
+	return 1;
+}
+
+CMD:sellvto(playerid, params[]) // Sells vehicle to player
+{
+	new targetid, price, string[256];
+
+	if(GetPlayerState(playerid) == PLAYER_STATE_DRIVER)
+	{
+		if(sscanf(params, "ui", targetid, price))
+			return SendClientMessage(playerid, COLOR_LIGHTCYAN, "Syntax: /sellvto [playerid/PartOfName] [price]");
+
+		new vid = GetPlayerVehicleID(playerid);
+		new actualvid = Vehicle[vid][vID];
+
+		if(Player[playerid][pVehicle1] == 0 && Player[playerid][pVehicle2] == 0 && Player[playerid][pVehicle3] == 0 && Player[playerid][pVehicle4] == 0)
+			return SendClientMessage(playerid, COLOR_NEUTRAL, "You do not have any vehicle to sell.");
+
+		if(IsValidCivilianVehicle(actualvid) == 1)
+			return SendClientMessage(playerid, COLOR_NEUTRAL, "You do not own this vehicle.");
+
+		if(GetPlayerMoney(targetid) < price)
+			return SendClientMessage(playerid, COLOR_NEUTRAL, "The player does not have enough cash to buy this vehicle.");
+
+		if(GetPlayerVehicles(targetid) >= MAX_PLAYER_VEHICLES)
+			return SendClientMessage(playerid, COLOR_NEUTRAL, "The player cannot buy more vehicles. Vehicle slots are full.");
+
+		format(string, sizeof(string), "You offered your %s to %s for $%d.", GetVehicleName(vid), GetName(targetid), price);
+		SendClientMessage(playerid, COLOR_LIGHTBLUE, string);
+
+		format(string, sizeof(string), "%s offered you %s for $%d. To accept, type /accept vehicle %d", GetName(playerid), GetVehicleName(vid), price, playerid);
+		SendClientMessage(targetid, COLOR_LIGHTBLUE, string);
+
+		SetPVarInt(playerid, "TempSellVehID", actualvid);
+		SetPVarInt(playerid, "TempSellVehPrice", price);
+	}
+	else
+		return SendClientMessage(playerid, COLOR_NEUTRAL, "You must be inside a vehicle to sell.");
+
 	return 1;
 }
 
@@ -4419,5 +5118,91 @@ CMD:buylevel(playerid, params[]) // Buys next level
 			format(string, sizeof(string), "You need at least $%d to buy next level", nextlevel);	
 		SendClientMessage(playerid, COLOR_NEUTRAL, string);
 	}
+	return 1;
+}
+
+// ------------------------------------------------------------------------------------------------
+CMD:accept(playerid, params[])
+{
+	new service[128], targetid, string[128];
+
+	if(sscanf(params, "s[128]u", service, targetid))
+		return SendClientMessage(playerid, COLOR_LIGHTCYAN, "Syntax: /accept [service] [playerid]");
+
+	if(strcmp(service, "vehicle") == 0)
+	{
+		new vid = GetPlayerVehicleID(targetid);
+		new actualvid = GetPVarInt(playerid, "TempSellVehID");
+		new price = GetPVarInt(playerid, "TempSellVehPrice");
+
+		new slot = CheckFreePlayerSlot(playerid);
+
+		if(slot == 1)
+			Player[playerid][pVehicle1] = actualvid;
+		else if(slot == 2)
+			Player[playerid][pVehicle2] = actualvid;
+		else if(slot == 3)
+			Player[playerid][pVehicle3] = actualvid;
+		else if(slot == 4)
+			Player[playerid][pVehicle4] = actualvid;
+		else if(slot == 0)
+			return SendClientMessage(playerid, COLOR_NEUTRAL, "You cannot buy more vehicles. Vehicle slots are full.");
+
+		if(Player[targetid][pVehicle1] == actualvid)
+			Player[targetid][pVehicle1] = 0;
+		else if(Player[targetid][pVehicle1] == actualvid)
+			Player[targetid][pVehicle2] = 0;
+		else if(Player[targetid][pVehicle1] == actualvid)
+			Player[targetid][pVehicle3] = 0;
+		else if(Player[targetid][pVehicle1] == actualvid)
+			Player[targetid][pVehicle4] = 0;
+
+		new key = CheckFreePlayerKey(playerid);
+		if(key == 1)
+			Player[playerid][pKey1] = actualvid;
+		else if(key == 2)
+			Player[playerid][pKey2] = actualvid;
+		else if(key == 3)
+			Player[playerid][pKey3] = actualvid;
+		else if(key == 4)
+			Player[playerid][pKey4] = actualvid;
+
+		if(Player[targetid][pKey1] == actualvid)
+			Player[targetid][pKey1] = 0;
+		else if(Player[targetid][pKey2] == actualvid)
+			Player[targetid][pKey2] = 0;
+		else if(Player[targetid][pKey3] == actualvid)
+			Player[targetid][pKey3] = 0;
+		else if(Player[targetid][pKey4] == actualvid)
+			Player[targetid][pKey4] = 0;
+
+		SafeGivePlayerMoney(targetid, price);
+		SafeGivePlayerMoney(playerid, -price);
+
+		Vehicle[actualvid][vOwner] = GetName(playerid);
+		RemovePlayerFromVehicle(targetid);
+
+		format(string, sizeof(string), "Congratulations, you sold your %s to %s for $%d.", GetVehicleName(vid), GetName(playerid), price);
+		SendClientMessage(targetid, COLOR_LIGHTBLUE, string);
+
+		format(string, sizeof(string), "Congratulations, you bought a %s from %s for $%d.", GetVehicleName(vid), GetName(targetid), price);
+		SendClientMessage(playerid, COLOR_LIGHTBLUE, string);
+
+		SaveAccount(targetid);
+		SaveVehicle(actualvid);
+	}
+	return 1;
+}
+
+// ------------------------------------------------------------------------------------------------
+CMD:taketest(playerid, params[])
+{
+	if(IsPlayerInRangeOfPoint(playerid, 2.0, 1450.8639, -2287.0969, 13.5469))
+	{
+		isTakingTest[playerid] = 1;
+		StartTest(playerid);
+	}
+	else
+		SendClientMessage(playerid, COLOR_NEUTRAL, "You are not near the DMV.");
 	return 1;
 }
