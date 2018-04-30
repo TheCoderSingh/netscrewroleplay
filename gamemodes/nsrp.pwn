@@ -58,6 +58,10 @@ new vehiclehealth;
 new vipgatestatus;
 new admingate;
 new admingatestatus;
+new area51gate1;
+new area51gate1status;
+new area51gate2;
+new area51gate2status;
 
 new gobackstatus[MAX_PLAYERS];
 new Float:savedposx[MAX_PLAYERS];
@@ -178,7 +182,9 @@ enum dialogs
 
 	DIALOG_BUY_VEHICLE,
 
-	DIALOG_DMV
+	DIALOG_DMV,
+
+	DIALOG_DEALERSHIP_0
 }
 
 new Float:lowdealershipspawns[][4] = {
@@ -370,7 +376,7 @@ public OnPlayerConnect(playerid)
 	TogglePlayerSpectating(playerid, 1);
 	CheckAccountExist(playerid);
 
-	hoursplayedtimer[playerid] = SetTimerEx("IncreaseHoursPlayed", 60000, 1, "i", playerid);
+	hoursplayedtimer[playerid] = SetTimerEx("IncreaseHoursPlayed", 600000, 1, "i", playerid);
 	healthtimer[playerid] = SetTimerEx("DecreaseHealth", 30000, 1, "i", playerid);
 	paydaytimer[playerid] = SetTimerEx("Payday", 1000, 1, "i", playerid);
 	accountstimer[playerid] = SetTimerEx("SaveAccount", 60000, 1, "i", playerid);
@@ -671,37 +677,6 @@ public OnDialogResponse(playerid, dialogid, response, listitem, inputtext[])
 	return 1;
 }
 
-public TestDrive(playerid, vehicleid)
-{
-	new model = GetVehicleModel(vehicleid);
-
-	switch(model)
-	{
-		case 412, 534, 535, 536, 566, 567, 575, 576:
-			SetPlayerPos(playerid, DealershipPosition[0][0], DealershipPosition[0][1], DealershipPosition[0][2]);
-		case 411, 429, 451, 494, 502, 503, 541:
-			SetPlayerPos(playerid, DealershipPosition[1][0], DealershipPosition[1][1], DealershipPosition[1][2]);
-		case 469, 487, 513, 519:
-			SetPlayerPos(playerid, DealershipPosition[2][0], DealershipPosition[2][1], DealershipPosition[2][2]);
-		case 446, 452, 453, 454, 473, 484, 493:
-			SetPlayerPos(playerid, DealershipPosition[3][0], DealershipPosition[3][1], DealershipPosition[3][2]);
-		case 400, 424, 444, 489, 495, 500, 556, 557, 573, 579:
-			SetPlayerPos(playerid, DealershipPosition[4][0], DealershipPosition[4][1], DealershipPosition[4][2]);
-		case 461, 462, 463, 468, 471, 481, 509, 510, 521, 522, 581, 586:
-			SetPlayerPos(playerid, DealershipPosition[5][0], DealershipPosition[5][1], DealershipPosition[5][2]);
-		case 401, 402, 405, 409, 410, 419, 421, 426, 434, 436, 439, 445, 466, 467, 474, 475, 477, 480, 491, 492, 496, 506, 507, 517, 518, 526, 527, 529, 533, 540, 542, 545, 546, 547, 549, 550, 551, 555, 558, 559, 560, 562, 565, 580, 585, 587, 589, 602, 603:
-			SetPlayerPos(playerid, DealershipPosition[6][0], DealershipPosition[6][1], DealershipPosition[6][2]);
-		case 423, 441, 443, 457, 465, 483, 485, 501, 530, 539, 571, 572, 574, 583, 594, 564:
-			SetPlayerPos(playerid, DealershipPosition[7][0], DealershipPosition[7][1], DealershipPosition[7][2]);
-	}
-
-	DestroyVehicle(vehicleid);
-	SetPlayerVirtualWorld(playerid, 0);
-
-	TestDriveStatus[playerid] = 0;
-	return 1;
-}
-
 public OnPlayerRequestClass(playerid, classid)
 {
 	SetSpawnInfo(playerid, 0, Player[playerid][pSkin], Spawn_X, Spawn_Y, Spawn_Z, 180, -1, -1, -1, -1, -1, -1);
@@ -868,6 +843,29 @@ public OnPlayerKeyStateChange(playerid, newkeys, oldkeys)
 				}
 			}
 		}
+		else if(IsPlayerInRangeOfPoint(playerid, 10.0, 214.2457, 1875.2751, 13.1470))
+		{
+			if(GetPlayerState(playerid) == PLAYER_STATE_DRIVER || GetPlayerState(playerid) == PLAYER_STATE_ONFOOT)
+			{
+				if(area51gate1status == 0 || area51gate2status == 0)
+				{
+					MoveObject(area51gate1, 209.7538, 1875.8989, 12.9409, 5.0, -1000.0, -1000.0, -1000.0);
+					area51gate1status = 1;
+					MoveObject(area51gate2, 217.9974, 1875.7994, 12.9409, 5.0, -1000.0, -1000.0, -1000.0);
+					area51gate2status = 1;
+
+					SetTimerEx("CloseGate", 7500, 0, "i", area51gate1);
+					SetTimerEx("CloseGate", 7500, 0, "i", area51gate2);
+				}
+				else
+				{
+					MoveObject(area51gate1, 213.85138, 1875.84949, 12.94090, 5.0, -1000.0, -1000.0, -1000.0);
+					area51gate1status = 0;
+					MoveObject(area51gate2, 213.90698, 1875.84888, 12.94093, 5.0, -1000.0, -1000.0, -1000.0);
+					area51gate2status = 0;
+				}
+			}
+		}
 	}
 	return 1;
 }
@@ -965,6 +963,12 @@ public OnPlayerExitVehicle(playerid, vehicleid)
 
 	if(TestDriveStatus[playerid] == 1)
 		TestDrive(playerid, vehicleid);
+
+	if(isTakingTest[playerid] != 0)
+	{
+		DestroyVehicle(vehicleid);
+		SendClientMessage(playerid, COLOR_NEUTRAL, "You failed the test because you exited the vehicle.");
+	}
 	return 1;
 }
 
@@ -986,33 +990,163 @@ public OnPlayerEnterRaceCheckpoint(playerid)
 	if(isTakingTest[playerid] == 1)
 	{
 		DisablePlayerRaceCheckpoint(playerid);
-		SetPlayerRaceCheckpoint(playerid, 0, 1471.3604, -2375.5933, 13.3828, 1343.7460, -2375.6699, 21.702, 5.0);
+		SetPlayerRaceCheckpoint(playerid, 0, 1471.4012, -2375.6589, 13.3828, 1298.3860, -2375.3872, 21.6893, 5.0);
 		isTakingTest[playerid] = 2;
 	}
 	else if(isTakingTest[playerid] == 2)
 	{
 		DisablePlayerRaceCheckpoint(playerid);
-		SetPlayerRaceCheckpoint(playerid, 0, 1343.7460, -2375.6699, 21.702, 1331.6577, -2332.3711, 13.3828, 5.0);
+		SetPlayerRaceCheckpoint(playerid, 0, 1298.3860, -2375.3872, 21.6893, 1329.4702, -2341.6086, 13.3828, 5.0);
 		isTakingTest[playerid] = 3;
 	}
 	else if(isTakingTest[playerid] == 3)
 	{
 		DisablePlayerRaceCheckpoint(playerid);
-		SetPlayerRaceCheckpoint(playerid, 0, 1331.6577, -2332.3711, 13.3828, 1442.3984, -2685.2473, 13.3750, 5.0);
+		SetPlayerRaceCheckpoint(playerid, 0, 1329.4702, -2341.6086, 13.3828, 1317.7577, -2446.0603, 7.6563, 5.0);
 		isTakingTest[playerid] = 4;
 	}
 	else if(isTakingTest[playerid] == 4)
 	{
 		DisablePlayerRaceCheckpoint(playerid);
-		SetPlayerRaceCheckpoint(playerid, 1, 1442.3984, -2685.2473, 13.3750, 0, 0, 0, 5.0);
+		SetPlayerRaceCheckpoint(playerid, 0, 1317.7577, -2446.0603, 7.6563, 1146.1193, -2389.4326, 11.1202, 5.0);
 		isTakingTest[playerid] = 5;
 	}
 	else if(isTakingTest[playerid] == 5)
 	{
 		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1146.1193, -2389.4326, 11.1202, 1037.5406, -2224.0027, 12.9523, 5.0);
+		isTakingTest[playerid] = 6;
+	}
+	else if(isTakingTest[playerid] == 6)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1037.5406, -2224.0027, 12.9523, 1063.7372, -1970.7164, 12.9412, 5.0);
+		isTakingTest[playerid] = 7;
+	}
+	else if(isTakingTest[playerid] == 7)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1063.7372, -1970.7164, 12.9412, 1064.1919, -1854.9427, 13.3984, 5.0);
+		isTakingTest[playerid] = 8;
+	}
+	else if(isTakingTest[playerid] == 8)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1064.1919, -1854.9427, 13.3984, 1304.2043, -1854.5226, 13.3828, 5.0);
+		isTakingTest[playerid] = 9;
+	}
+	else if(isTakingTest[playerid] == 9)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1304.2043, -1854.5226, 13.3828, 1525.1295, -1874.7340, 13.3906, 5.0);
+		isTakingTest[playerid] = 10;
+	}
+	else if(isTakingTest[playerid] == 10)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1525.1295, -1874.7340, 13.3906, 1529.2675, -2034.1418, 30.1816, 5.0);
+		isTakingTest[playerid] = 11;
+	}
+	else if(isTakingTest[playerid] == 11)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1529.2675, -2034.1418, 30.1816, 1691.6752, -2169.1997, 16.5903, 5.0);
+		isTakingTest[playerid] = 12;
+	}
+	else if(isTakingTest[playerid] == 12)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1691.6752, -2169.1997, 16.5903, 1956.4769, -2168.8821, 13.3828, 5.0);
+		isTakingTest[playerid] = 13;
+	}
+	else if(isTakingTest[playerid] == 13)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1956.4769, -2168.8821, 13.3828, 2066.3418, -2172.1694, 13.3828, 5.0);
+		isTakingTest[playerid] = 14;
+	}
+	else if(isTakingTest[playerid] == 14)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 2066.3418, -2172.1694, 13.3828, 2138.0227, -2221.9438, 13.3899, 5.0);
+		isTakingTest[playerid] = 15;
+	}
+	else if(isTakingTest[playerid] == 15)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 2138.0227, -2221.9438, 13.3899, 2099.0146, -2323.2014, 13.3764, 5.0);
+		isTakingTest[playerid] = 16;
+	}
+	else if(isTakingTest[playerid] == 16)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 2099.0146, -2323.2014, 13.3764, 2183.2695, -2370.4617, 13.3750, 5.0);
+		isTakingTest[playerid] = 17;
+	}
+	else if(isTakingTest[playerid] == 17)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 2183.2695, -2370.4617, 13.3750, 2157.5107, -2576.9570, 13.3750, 5.0);
+		isTakingTest[playerid] = 18;
+	}
+	else if(isTakingTest[playerid] == 18)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 2157.5107, -2576.9570, 13.3750, 2061.2656, -2667.7910, 13.3782, 5.0);
+		isTakingTest[playerid] = 19;
+	}
+	else if(isTakingTest[playerid] == 19)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 2061.2656, -2667.7910, 13.3782, 1928.5756, -2667.5767, 5.9538, 5.0);
+		isTakingTest[playerid] = 20;
+	}
+	else if(isTakingTest[playerid] == 20)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1928.5756, -2667.5767, 5.9538, 1730.5620, -2667.7825, 5.8862, 5.0);
+		isTakingTest[playerid] = 21;
+	}
+	else if(isTakingTest[playerid] == 21)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1730.5620, -2667.7825, 5.8862, 1444.5577, -2667.5056, 13.3750, 5.0);
+		isTakingTest[playerid] = 22;
+	}
+	else if(isTakingTest[playerid] == 22)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1444.5577, -2667.5056, 13.3750, 1349.3557, -2564.1382, 13.3750, 5.0);
+		isTakingTest[playerid] = 23;
+	}
+	else if(isTakingTest[playerid] == 23)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1349.3557, -2564.1382, 13.3750, 1348.8773, -2313.6343, 13.3828, 5.0);
+		isTakingTest[playerid] = 24;
+	}
+	else if(isTakingTest[playerid] == 24)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 0, 1348.8773, -2313.6343, 13.3828, 1428.3899, -2287.9602, 13.3828, 5.0);
+		isTakingTest[playerid] = 25;
+	}
+	else if(isTakingTest[playerid] == 25)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
+		SetPlayerRaceCheckpoint(playerid, 1, 1428.3899, -2287.9602, 13.3828, 0, 0, 0, 5.0);
+		isTakingTest[playerid] = 26;
+	}
+	else if(isTakingTest[playerid] == 26)
+	{
+		DisablePlayerRaceCheckpoint(playerid);
 		isTakingTest[playerid] = 0;
 		SetPlayerPos(playerid, 1450.8639, -2287.0969, 13.5469);
 		SafeGivePlayerMoney(playerid, -50);
+
+		new vid = GetPlayerVehicleID(playerid);
+		DestroyVehicle(vid);
+
 		ShowPlayerDialog(playerid, DIALOG_DMV, DIALOG_STYLE_MSGBOX, "Driver's License", "Congratulations, you received the driver's license. For more information, type /vhelp.", "Okay", "");
 		Player[playerid][pDriversLicense] = 100;
 	}
@@ -1087,6 +1221,29 @@ stock GetClosestVehicle(playerid) // Returns the ID of the vehicle that is close
 		}
 	}
 	return closeveh;
+}
+
+stock GetPlayerSpeed(playerid) // Converts velocity into speed and returns it
+{
+    new Float:X, Float:Y, Float:Z;
+
+    if(IsPlayerInAnyVehicle(playerid))
+    	GetVehicleVelocity(GetPlayerVehicleID(playerid), X, Y, Z);
+    else
+    	GetPlayerVelocity(playerid, X, Y, Z);
+
+    // rotation = floatsqroot(floatabs(floatpower(X + Y + Z, 2)));
+
+    // return distance?floatround(rotation * 100 * 1.61):floatround(rotation * 100);
+
+    new Float:vX = floatpower(X, 2);
+    new Float:vY = floatpower(Y, 2);
+    new Float:vZ = floatpower(Z, 2);
+
+    new Float:sq = floatsqroot(vX + vY + vZ);
+
+    new Float:total = sq * 180.0;
+    return floatround(total);
 }
 
 public CheckAccountExist(playerid) // Checks if a player is already registered or not and shows the login/register dialog accordingly
@@ -2175,6 +2332,14 @@ public LoadObjects() // Loads objects in the server
 	CreateObject(6959, 1132.56750, 1035.66455, -90.88270,   0.00000, 0.00000, 0.00000);
 	CreateObject(6959, 1132.82690, 1075.31348, -90.88270,   0.00000, 0.00000, 0.00000);
 
+	// Area 51
+
+	CreateObject(6959, 275.01593, 1885.25122, 16.63513,   0.00000, 0.00000, 0.00000);
+	area51gate2 = CreateObject(19912, 213.85138, 1875.84949, 12.94090,   0.00000, 0.00000, -180.28000);
+	CreateObject(19865, 246.67169, 1862.14038, 19.46498,   0.00000, -86.00000, -51.30000);
+	CreateObject(19912, 96.67999, 1915.69385, 18.66125,   0.00000, 0.00000, -91.02001);
+	area51gate1 = CreateObject(19912, 213.90698, 1875.84888, 12.94093,   0.00000, 0.00000, 0.00000);
+
 	return 1;
 }
 
@@ -2377,7 +2542,12 @@ public RemoveObjects(playerid) // Removes objects from the server
 	RemoveBuildingForPlayer(playerid, 680, 1042.1328, 1181.8438, 9.7031, 0.25);
 	RemoveBuildingForPlayer(playerid, 647, 1038.2656, 1177.1641, 11.1250, 0.25);
 
-	RemoveBuildingForPlayer(playerid, 10249, -1663.1875, 1214.5547, 16.2109, 0.25); // DS 5 objects
+	RemoveBuildingForPlayer(playerid, 10249, -1663.1875, 1214.5547, 16.2109, 0.25); // DS 5 
+
+	// Area 51
+
+	RemoveBuildingForPlayer(playerid, 3280, 245.3750, 1862.3672, 20.1328, 0.25);
+	RemoveBuildingForPlayer(playerid, 3280, 246.6172, 1863.3750, 20.1328, 0.25);
 
 	return 1;
 }
@@ -2497,29 +2667,6 @@ public LockStatus(playerid, vehicleid) // Shows the lock status of the vehicle
 	return 1;
 }
 
-stock GetPlayerSpeed(playerid) // Converts velocity into speed and returns it
-{
-    new Float:X, Float:Y, Float:Z;
-
-    if(IsPlayerInAnyVehicle(playerid))
-    	GetVehicleVelocity(GetPlayerVehicleID(playerid), X, Y, Z);
-    else
-    	GetPlayerVelocity(playerid, X, Y, Z);
-
-    // rotation = floatsqroot(floatabs(floatpower(X + Y + Z, 2)));
-
-    // return distance?floatround(rotation * 100 * 1.61):floatround(rotation * 100);
-
-    new Float:vX = floatpower(X, 2);
-    new Float:vY = floatpower(Y, 2);
-    new Float:vZ = floatpower(Z, 2);
-
-    new Float:sq = floatsqroot(vX + vY + vZ);
-
-    new Float:total = sq * 180.0;
-    return floatround(total);
-}
-
 public settime(playerid) // Shows the global date and time
 {
 	new string[256], year, month, day, hours, minutes, seconds;
@@ -2533,14 +2680,14 @@ public settime(playerid) // Shows the global date and time
 	TextDrawSetString(Time, string);
 }
 
-public CreateDMV()
+public CreateDMV() // Crates DMV
 {
 	CreatePickup(1239, 1, 1450.8639, -2287.0969, 13.5469, 0);
 	CreateDynamic3DTextLabel("DMV\nType /taketest\nto take the test\nfor driver's license.", COLOR_WHITE, 1450.8639, -2287.0969, 13.5469, 100.0, INVALID_PLAYER_ID, INVALID_VEHICLE_ID, 0, -1, -1, -1, 100.0, -1);
 	return 1;
 }
 
-public CloseGate(gateid)
+public CloseGate(gateid) // Closes the gate according to the gate ID
 {
 	
 	if(gateid == vipgate)
@@ -2553,6 +2700,46 @@ public CloseGate(gateid)
 		MoveObject(gateid, -505.09534, 2598.45361, 55.32130, 2.0, -1000.0, -1000.0, -1000.0);
 		admingatestatus = 0;
 	}
+	else if(gateid == area51gate1)
+	{
+		MoveObject(area51gate1, 213.85138, 1875.84949, 12.94090, 5.0, -1000.0, -1000.0, -1000.0);
+		area51gate1status = 0;
+	}
+	else if(gateid == area51gate2)
+	{
+		MoveObject(area51gate2, 213.90698, 1875.84888, 12.94093, 5.0, -1000.0, -1000.0, -1000.0);
+		area51gate2status = 0;
+	}
+	return 1;
+}
+
+public TestDrive(playerid, vehicleid)
+{
+	new model = GetVehicleModel(vehicleid);
+
+	switch(model)
+	{
+		case 412, 534, 535, 536, 566, 567, 575, 576:
+			SetPlayerPos(playerid, DealershipPosition[0][0], DealershipPosition[0][1], DealershipPosition[0][2]);
+		case 411, 429, 451, 494, 502, 503, 541:
+			SetPlayerPos(playerid, DealershipPosition[1][0], DealershipPosition[1][1], DealershipPosition[1][2]);
+		case 469, 487, 513, 519:
+			SetPlayerPos(playerid, DealershipPosition[2][0], DealershipPosition[2][1], DealershipPosition[2][2]);
+		case 446, 452, 453, 454, 473, 484, 493:
+			SetPlayerPos(playerid, DealershipPosition[3][0], DealershipPosition[3][1], DealershipPosition[3][2]);
+		case 400, 424, 444, 489, 495, 500, 556, 557, 573, 579:
+			SetPlayerPos(playerid, DealershipPosition[4][0], DealershipPosition[4][1], DealershipPosition[4][2]);
+		case 461, 462, 463, 468, 471, 481, 509, 510, 521, 522, 581, 586:
+			SetPlayerPos(playerid, DealershipPosition[5][0], DealershipPosition[5][1], DealershipPosition[5][2]);
+		case 401, 402, 405, 409, 410, 419, 421, 426, 434, 436, 439, 445, 466, 467, 474, 475, 477, 480, 491, 492, 496, 506, 507, 517, 518, 526, 527, 529, 533, 540, 542, 545, 546, 547, 549, 550, 551, 555, 558, 559, 560, 562, 565, 580, 585, 587, 589, 602, 603:
+			SetPlayerPos(playerid, DealershipPosition[6][0], DealershipPosition[6][1], DealershipPosition[6][2]);
+		case 423, 441, 443, 457, 465, 483, 485, 501, 530, 539, 571, 572, 574, 583, 594, 564:
+			SetPlayerPos(playerid, DealershipPosition[7][0], DealershipPosition[7][1], DealershipPosition[7][2]);
+	}
+
+	DestroyVehicle(vehicleid);
+
+	TestDriveStatus[playerid] = 0;
 	return 1;
 }
 
@@ -2592,7 +2779,7 @@ public DestroyTempVehicle(vehicleid) // Destroys a vehicle from the server
 	return 1;
 }
 
-public CheckFreePlayerKey(playerid)
+public CheckFreePlayerKey(playerid) // Checks a key slot of a player is free
 {
 	if(Player[playerid][pKey1] == 0)
 		return 1;
@@ -2605,7 +2792,7 @@ public CheckFreePlayerKey(playerid)
 	return 0;
 }
 
-public CheckVehicleHealth()
+public CheckVehicleHealth() // Checks the vehicle health and respawns if less than 250
 {
 	new Float:health;
 	for(new i = 1; i < MAX_VEHICLES; i++)
@@ -2619,17 +2806,17 @@ public CheckVehicleHealth()
 	return 1;
 }
 
-public StartTest(playerid)
+public StartTest(playerid) // Starts the driver's license test
 {
 	new vid;
 
-	vid = CreateVehicle(527, 1426.1364, -2285.6741, 13.3828, 0, 1, 1, -1);
+	vid = CreateVehicle(527, 1426.1364, -2285.6741, 13.3828, 180.0, 1, 1, -1);
 
 	PutPlayerInVehicle(playerid, vid, 0);
 
 	Vehicle[vid][vFuel] = 100.0;
 
-	SetPlayerRaceCheckpoint(playerid, 0, 1472.2115, -2334.5000, 13.3828, 1471.3604, -2375.5933, 13.3828, 5.0);
+	SetPlayerRaceCheckpoint(playerid, 0, 1471.8582, -2334.9355, 13.3828, 1471.4012, -2375.6589, 13.3828, 5.0);
 	return 1;
 }
 
@@ -5205,4 +5392,14 @@ CMD:taketest(playerid, params[])
 	else
 		SendClientMessage(playerid, COLOR_NEUTRAL, "You are not near the DMV.");
 	return 1;
+}
+
+CMD:buyvehicle(playerid, params[])
+{
+	new string[128];
+	if(IsPlayerInRangeOfPoint(playerid, 3.0, DealershipPosition[0][0], DealershipPosition[0][1], DealershipPosition[0][2]))
+	{
+		format(string, sizeof(string), "Voodoo\t$123123\nRemington\t$123123\nSlamvan\t$123123\nBlade\t$123123\nTahoma\t$123123\nSavanna\t$123123\nBroadway\t$132312\nTornado\t$123123");
+		ShowPlayerDialog(playerid, DIALOG_DEALERSHIP_0, DIALOG_STYLE_TABLIST, "Buy Vehicle", string, "Buy", "Cancel");
+	}
 }
